@@ -7,6 +7,7 @@ use App\Services\Localize\LivewirePayloadLocalizer;
 use App\Services\LocalizeDictionary;
 use Closure;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
@@ -66,7 +67,9 @@ class LocalizeResponse
             $response->headers->remove('Content-Length');
 
             return $response;
-        } catch (\Throwable) {
+        } catch (\Throwable $e) {
+            Log::warning('Localization failed, serving the original response.', ['exception' => $e]);
+
             return $response;
         }
     }
