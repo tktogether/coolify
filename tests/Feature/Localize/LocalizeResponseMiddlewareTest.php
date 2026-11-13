@@ -14,6 +14,9 @@ beforeEach(function () {
     InstanceSettings::forceCreate(['id' => 0]);
     // The login view redirects to /register while no user exists.
     User::factory()->create();
+    // phpunit.xml sets LOCALIZE_OFF for the whole suite; this is the only
+    // Localize test that exercises the HTTP path through the middleware.
+    config()->set('localize.enabled', true);
     LocalizeDictionary::flush();
     LocalizeDictionary::merge([
         'Login' => '登录',
