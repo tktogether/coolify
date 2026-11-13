@@ -126,7 +126,7 @@ cd /data/coolify/source && docker compose pull && docker compose up -d   # 立�
 
 GitHub 无「钉选任意 md 为首页」功能（首页恒渲染根目录 `README.md`）。采用**改名互换**：
 
-- `git mv README.md README.upstream.md`——上游原文保留；上游后续对 README.md 的修改经 git rename 跟踪自动落在 `README.upstream.md`，预期零冲突；上游自行删除/重命名 README.md 时（极罕见）机械解决。
+- `git mv README.md README.upstream.md`——上游原文保留。**实测修正（2026-11-14）**：我们的新 README.md 占据同名路径，git 无法将上游对 README.md 的修改经 rename 跟踪转入 `README.upstream.md`——上游每次实质修改 README.md 时，sync-upstream 合并会冲突（可见失败，绝不静默）；处理是机械的：保留中文 README.md，把上游新内容写入 `README.upstream.md`，处理步骤写在新 README.md 内。此为「fork 首页」目标的已知代价，出现频率 = 上游改 README 的频率（一年数次）。
 - 新建 `README.md` 为 fork 首页说明（中文）：个人汉化 fork 定位、一键安装命令（含 `REGISTRY_URL`）、存量实例切换与回滚、更新渠道说明、指向设计文档。
 - 仓库 About 描述改中文，Website 链接指向 `README.upstream.md` 便于回溯上游说明。
 
