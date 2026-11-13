@@ -11,8 +11,15 @@ class HtmlLocalizer
 
     /**
      * Captures a whole tag so the text between tags can be translated separately.
+     *
+     * The pattern is quote-aware: quoted attribute values are consumed whole, so
+     * a ">" inside a quoted value can never split a tag mid-attribute and turn a
+     * non whitelisted attribute value into translatable text. An unterminated
+     * quoted value ends the tag at the next ">" instead, which degrades
+     * fail-safe: the malformed tag passes through untranslated and
+     * byte-identical, and no content is ever dropped or restructured.
      */
-    private const TAG_SPLIT = '/(<[^>]+>)/';
+    private const TAG_SPLIT = '/(<\/?[a-zA-Z][^\s>]*+(?:"[^"]*+"|\'[^\']*\'|"[^>"]*+|\'[^>\']*+|[^>"\'])*+>)/';
 
     /**
      * Captures a complete HTML comment so it can be preserved verbatim.
@@ -31,9 +38,10 @@ class HtmlLocalizer
      * Only text nodes and the whitelisted attributes (title, placeholder,
      * aria-label) are translated, and only outside script/style/pre/code/textarea
      * regions. Everything else — unknown text, comments, script bodies, non
-     * whitelisted attribute values — passes through byte-identical. Each text
-     * segment goes through a single strtr() pass; a miss returns the original
-     * text untouched.
+     * whitelisted attribute values — passes through byte-identical. A skip
+     * region spans HTML comments and only ends when every open skip tag,
+     * including same-name nested ones, has been closed. Each text segment goes
+     * through a single strtr() pass; a miss returns the original text untouched.
      *
      * @param  array<string, string>  $map  Full English phrase => translation.
      */
@@ -48,34 +56,38 @@ class HtmlLocalizer
             return $html;
         }
 
+        $skipStack = [];
         $result = '';
+
         foreach ($parts as $part) {
             if ($part === '') {
                 continue;
             }
 
-            $result .= str_starts_with($part, '<!--')
-                ? $part
-                : self::translateSegments($part, $map);
+            if (str_starts_with($part, '<!--')) {
+                $result .= $part;
+            } else {
+                $result .= self::translateSegments($part, $map, $skipStack);
+            }
         }
 
         return $result;
     }
 
     /**
-     * Walk the tag/text segments of a comment-free HTML chunk, tracking skip
-     * regions with a stack of open skip-tag names.
+     * Walk the tag/text segments of an HTML chunk, continuing the skip-region
+     * stack that spans chunks (comments are interleaved and preserved verbatim).
      *
      * @param  array<string, string>  $map
+     * @param  list<string>  $skipStack
      */
-    private static function translateSegments(string $html, array $map): string
+    private static function translateSegments(string $html, array $map, array &$skipStack): string
     {
         $segments = preg_split(self::TAG_SPLIT, $html, -1, PREG_SPLIT_DELIM_CAPTURE);
         if ($segments === false) {
             return $html;
         }
 
-        $skipStack = [];
         $result = '';
 
         foreach ($segments as $index => $segment) {
@@ -97,7 +109,13 @@ class HtmlLocalizer
 
     /**
      * Update the skip-region state for one tag segment and translate its
-     * whitelisted attributes when the tag is outside a skip region.
+     * whitelisted attributes when the tag is outside a skip region. The opening
+     * tag that starts a skip region is itself outside the region, so its
+     * whitelisted attributes are still translated; every skip tag encountered
+     * inside a region — including same-name nested ones — is pushed as well, so
+     * the region only ends when all of them have been closed. A closing tag
+     * closes the innermost matching open tag and everything opened after it,
+     * which recovers from mismatched nesting.
      *
      * @param  array<string, string>  $map
      * @param  list<string>  $skipStack
@@ -105,9 +123,9 @@ class HtmlLocalizer
     private static function translateTag(string $tag, array $map, array &$skipStack): string
     {
         if (preg_match('/^<\/\s*([a-zA-Z][a-zA-Z0-9:_-]*)/', $tag, $matches) === 1) {
-            $key = array_search(strtolower($matches[1]), $skipStack, true);
-            if ($key !== false) {
-                $skipStack = array_slice($skipStack, 0, (int) $key);
+            $keys = array_keys($skipStack, strtolower($matches[1]), true);
+            if ($keys !== []) {
+                $skipStack = array_slice($skipStack, 0, (int) end($keys));
             }
 
             return $tag;
@@ -115,10 +133,10 @@ class HtmlLocalizer
 
         if (preg_match('/^<([a-zA-Z][a-zA-Z0-9:_-]*)/', $tag, $matches) === 1) {
             $inSkipRegion = $skipStack !== [];
+            $name = strtolower($matches[1]);
 
-            if ($inSkipRegion === false && preg_match('~/\s*>$~', $tag) !== 1
-                && in_array(strtolower($matches[1]), self::SKIP_TAGS, true)) {
-                $skipStack[] = strtolower($matches[1]);
+            if (preg_match('~/\s*>$~', $tag) !== 1 && in_array($name, self::SKIP_TAGS, true)) {
+                $skipStack[] = $name;
             }
 
             if ($inSkipRegion) {

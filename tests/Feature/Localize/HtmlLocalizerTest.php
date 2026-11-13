@@ -38,3 +38,23 @@ test('handles nested tags and mixed content', function () use ($map) {
     $html = '<div><span>Deploy</span> and <button>Save changes</button></div>';
     expect(HtmlLocalizer::translate($html, $map))->toBe('<div><span>部署</span> and <button>保存更改</button></div>');
 });
+
+test('keeps skip region content after a comment untouched', function () use ($map) {
+    $html = '<script>var a = "Deploy"; <!-- note --> var b = "Deploy";</script>';
+    expect(HtmlLocalizer::translate($html, $map))->toBe($html);
+});
+
+test('keeps same-name nested skip tags skipped until the outer close', function () use ($map) {
+    $html = '<code><code>Deploy</code>Deploy</code>';
+    expect(HtmlLocalizer::translate($html, $map))->toBe($html);
+});
+
+test('keeps tags with quoted attribute values containing gt intact', function () use ($map) {
+    $html = '<input title="a>b" name="Deploy">';
+    expect(HtmlLocalizer::translate($html, $map))->toBe($html);
+});
+
+test('keeps tags with unclosed quoted values intact', function () use ($map) {
+    $html = '<div data-x="Deploy>y</div>';
+    expect(HtmlLocalizer::translate($html, $map))->toBe($html);
+});
