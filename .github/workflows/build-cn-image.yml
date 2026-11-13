@@ -31,13 +31,32 @@ jobs:
           if [ -z "${TAG}" ] || [ "${TAG}" = "main" ]; then TAG=$(jq -r '.stable.coolify // empty' release.json); fi
           if [ -z "${TAG}" ]; then echo "::error::Unable to determine the version to build, release.json sets no stable.coolify version" >&2; exit 1; fi
           echo "image_tag=${TAG}" >> "$GITHUB_OUTPUT"
+      - name: Read the commit date and hash
+        id: args
+        run: |
+          {
+            echo "epoch=$(git log -1 --format=%ct)"
+            echo "created=$(TZ=UTC git log -1 --format=%cd --date=format-local:%Y-%m-%dT%H:%M:%SZ)"
+            echo "sha=$(git rev-parse HEAD)"
+          } >> "$GITHUB_OUTPUT"
       - uses: docker/setup-buildx-action@v4.4.1
       - uses: docker/login-action@v4.8.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - uses: docker/build-push-action@v7.4.0
+      - name: Skip if the image is already published
+        id: published
+        env:
+          IMAGE: ghcr.io/tktogether/coollabsio/coolify
+          TAG: ${{ steps.ver.outputs.image_tag }}
+        run: |
+          if docker manifest inspect "${IMAGE}:${TAG}" >/dev/null 2>&1; then
+            echo "Image ${IMAGE}:${TAG} is already published, skipping the build."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+      - if: ${{ steps.published.outputs.skip != 'true' }}
+        uses: docker/build-push-action@v7.4.0
         with:
           context: .
           file: docker/production/Dockerfile
@@ -45,6 +64,9 @@ jobs:
           push: true
           build-args: |
             COOLIFY_VERSION=${{ steps.ver.outputs.image_tag }}
+            SOURCE_DATE_EPOCH=${{ steps.args.outputs.epoch }}
+            CREATED=${{ steps.args.outputs.created }}
+            GIT_SHA=${{ steps.args.outputs.sha }}
           tags: |
             ghcr.io/tktogether/coollabsio/coolify:${{ steps.ver.outputs.image_tag }}
             ghcr.io/tktogether/coollabsio/coolify:latest
@@ -53,13 +75,27 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7.0.1
+      - id: ver
+        run: echo "version=$(jq -r '.helper.version' upstream.json)" >> "$GITHUB_OUTPUT"
       - uses: docker/login-action@v4.8.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - run: |
-          VERSION=$(jq -r '.helper.version' upstream.json)
+      - name: Skip if the image is already published
+        id: published
+        env:
+          IMAGE: ghcr.io/tktogether/coollabsio/coolify-helper
+          TAG: ${{ steps.ver.outputs.version }}
+        run: |
+          if docker manifest inspect "${IMAGE}:${TAG}" >/dev/null 2>&1; then
+            echo "Image ${IMAGE}:${TAG} is already published, skipping the pull and push."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+      - if: ${{ steps.published.outputs.skip != 'true' }}
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+        run: |
           docker pull "docker.io/coollabsio/coolify-helper:${VERSION}"
           docker tag "docker.io/coollabsio/coolify-helper:${VERSION}" "ghcr.io/tktogether/coollabsio/coolify-helper:${VERSION}"
           docker push "ghcr.io/tktogether/coollabsio/coolify-helper:${VERSION}"
