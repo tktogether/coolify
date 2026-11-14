@@ -81,7 +81,6 @@ return [
     'Reducing below your active server count will deactivate excess servers.' => '低于当前活跃服务器数时，多余的服务器将被停用。',
     'Register the GitHub App before using this source.' => '使用此来源前请先注册 GitHub App。',
     'Registry logins are read from the Docker config that deployments use. Use' => '镜像仓库登录信息读取自部署所用的 Docker 配置。使用',
-    'Registry logins on each server, read from the Docker config that deployments use. Use' => '每台服务器的镜像仓库登录信息读取自部署所用的 Docker 配置。使用',
     'Remove every resource before permanently deleting this environment.' => '永久删除此环境前，请先移除其中所有资源。',
     'Remove it from the compose file to unlink' => '从 Compose 文件中移除即可取消关联',
     'Remove or move these resources before deleting the team.' => '删除团队前，请先移除或移动这些资源。',
