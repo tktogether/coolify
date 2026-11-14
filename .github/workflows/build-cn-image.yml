@@ -8,6 +8,11 @@ on:
       version:
         description: 'Version to build (e.g. 4.7.5), defaults to latest tag'
         required: false
+      force_build:
+        description: 'Rebuild even if the image tag is already published (e.g. dictionary updates without a version bump)'
+        type: boolean
+        required: false
+        default: false
   workflow_run:
     workflows: ['Sync upstream']
     types: [completed]
@@ -50,8 +55,9 @@ jobs:
         env:
           IMAGE: ghcr.io/tktogether/coollabsio/coolify
           TAG: ${{ steps.ver.outputs.image_tag }}
+          FORCE_BUILD: ${{ inputs.force_build }}
         run: |
-          if docker manifest inspect "${IMAGE}:${TAG}" >/dev/null 2>&1; then
+          if [ "${FORCE_BUILD}" != "true" ] && docker manifest inspect "${IMAGE}:${TAG}" >/dev/null 2>&1; then
             echo "Image ${IMAGE}:${TAG} is already published, skipping the build."
             echo "skip=true" >> "$GITHUB_OUTPUT"
           fi
