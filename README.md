@@ -24,13 +24,19 @@ curl -fsSL https://cdn.coollabs.io/coolify/install.sh | REGISTRY_URL=ghcr.io/tkt
 
 ```bash
 echo "REGISTRY_URL=ghcr.io/tktogether" >> /data/coolify/source/.env
-cd /data/coolify/source && docker compose pull && docker compose up -d   # 立即以同版本 fork 镜像重建
-# 或不执行重建，等上游发新版后由自动升级自然拉取 fork 镜像
+# 立即以同版本 fork 镜像重建（compose 必须叠加 prod 文件，见下）：
+cd /data/coolify/source && REGISTRY_URL=ghcr.io/tktogether LATEST_IMAGE=4.7.5 \
+  docker compose -f docker-compose.yml -f docker-compose.prod.yml pull && \
+  REGISTRY_URL=ghcr.io/tktogether LATEST_IMAGE=4.7.5 \
+  docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+# 或不执行重建，等自动升级（见下）自然拉取 fork 镜像
 ```
+
+> 注意：`coolify` 服务的镜像定义在 `docker-compose.prod.yml`（`docker-compose.yml` 只是基础文件），裸调 `docker compose pull` 会报 "neither an image nor a build context"。`LATEST_IMAGE` 按你的目标版本号填写。
 
 写入后可立即以同版本 Fork 镜像重建容器（不依赖上游发版），此后所有升级均从 Fork 源拉取。
 
-**回滚**：从 `/data/coolify/source/.env` 中删除 `REGISTRY_URL=ghcr.io/tktogether` 这一行，再执行 `docker compose up -d` 即恢复官方镜像。
+**回滚**：从 `/data/coolify/source/.env` 中删除 `REGISTRY_URL=ghcr.io/tktogether` 这一行，再执行 `bash /data/coolify/source/upgrade.sh <目标版本> <helper版本> docker.io`（或同上带 `-f` 两个文件的 compose 命令，`LATEST_IMAGE` 用目标官方版本号）即恢复官方镜像。
 
 ## 自动跟版
 

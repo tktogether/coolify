@@ -116,11 +116,16 @@ Coolify 官方不支持界面 i18n（`lang/*.json` 仅 48 个登录相关 key，
 
 ```bash
 echo "REGISTRY_URL=ghcr.io/tktogether" >> /data/coolify/source/.env
-cd /data/coolify/source && docker compose pull && docker compose up -d   # 立即以同版本 fork 镜像重建
+# 立即以同版本 fork 镜像重建（compose 必须叠加 prod 文件——coolify 服务的镜像定义在 prod 文件里，
+# 裸调 docker compose 会读只有基础服务的 docker-compose.yml 而报 "neither an image nor a build context"）：
+cd /data/coolify/source && REGISTRY_URL=ghcr.io/tktogether LATEST_IMAGE=<目标版本> \
+  docker compose -f docker-compose.yml -f docker-compose.prod.yml pull && \
+  REGISTRY_URL=ghcr.io/tktogether LATEST_IMAGE=<目标版本> \
+  docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 # 或不执行重建，等上游发新版后由自动升级自然拉取 fork 镜像
 ```
 
-依据（均已核实）：`docker-compose.yml` 镜像地址由 `${REGISTRY_URL}` 插值；`upgrade.sh:255` 每次升级将 `REGISTRY_URL` 持久化回 `.env`。回滚 = 删除该行后 `docker compose up -d`。不修改官方 `upgrade.sh`（其头部禁止改动），`.env` 即其正规配置通道。
+依据（均已核实）：应用镜像地址在 `docker-compose.prod.yml:8`，由 `${REGISTRY_URL}`/`${LATEST_IMAGE}` 插值；官方升级脚本以 `-f docker-compose.yml -f docker-compose.prod.yml` 叠加运行（`upgrade.sh:101`），并将 `REGISTRY_URL` 持久化回 `.env`（`upgrade.sh:255`）。回滚 = 删除该行后以官方源（`REGISTRY_URL=docker.io`）执行同一 compose 命令。不修改官方 `upgrade.sh`（其头部禁止改动），`.env` 即其正规配置通道。
 
 **README（使用者明确要求：新 md 作为仓库首页）**
 
