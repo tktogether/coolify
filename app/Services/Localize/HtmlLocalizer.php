@@ -103,10 +103,19 @@ class HtmlLocalizer
         $phrases = [];
 
         foreach ($map as $english => $translated) {
-            if (str_contains((string) $english, ' ')) {
-                $phrases[$english] = $translated;
-            } else {
-                $exact[(string) $english] = $translated;
+            $english = (string) $english;
+            $isPhrase = str_contains($english, ' ');
+            // Raw HTML stores & as &amp;, so keys containing & also get an entity variant.
+            $variants = [$english];
+            if (str_contains($english, '&') && ! str_contains($english, '&amp;')) {
+                $variants[] = str_replace('&', '&amp;', $english);
+            }
+            foreach ($variants as $variant) {
+                if ($isPhrase) {
+                    $phrases[$variant] = $translated;
+                } else {
+                    $exact[$variant] = $translated;
+                }
             }
         }
 

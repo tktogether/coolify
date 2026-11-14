@@ -126,7 +126,6 @@ return [
     'Coolify does not apply the driver options of this volume because it was created before they were supported. To apply them: stop the resource, back up any data you need, delete this entry together with the Docker volume, then redeploy.' => '此卷创建于驱动选项支持之前，Coolify 不会应用其驱动选项。如需应用：停止资源、备份所需数据、连同 Docker 卷一起删除此条目，然后重新部署。',
     'Coolify does not save the token. Docker saves the login on the server in' => 'Coolify 不保存令牌。Docker 会把登录信息保存在服务器上的',
     'Coolify does not send email. Select a provider next to the title to set it up.' => 'Coolify 不直接发送邮件。请在标题旁选择提供商进行配置。',
-    'Coolify is profitable thanks to' => 'Coolify 的持续发展离不开',
     'Coolify manages this tunnel through the Cloudflare API (tunnel' => 'Coolify 通过 Cloudflare API 管理此隧道（隧道',
     'Coolify matched each hostname to a zone available through your connected DNS credentials.' => 'Coolify 已把每个主机名匹配到你已连接 DNS 凭据可用的区域。',
     'Coolify reads secrets from this provider at deployment time and writes them into the generated' => 'Coolify 在部署时从此提供商读取机密并写入生成的',
