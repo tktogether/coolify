@@ -33,6 +33,13 @@ class HtmlLocalizer
     private const TRANSLATABLE_ATTRIBUTE = '~(\s(?:title|placeholder|aria-label)\s*=\s*)(["\'])(.*?)\2~is';
 
     /**
+     * Captures the leading whitespace, the trimmed body, and the trailing
+     * whitespace of a text segment, so a whole-segment exact match can keep the
+     * original spacing around the translation.
+     */
+    private const TRIMMED_SEGMENT = '~^(\s*)(.*?)(\s*)$~s';
+
+    /**
      * Translate English phrases inside an HTML fragment.
      *
      * Only text nodes and the whitelisted attributes (title, placeholder,
@@ -40,8 +47,15 @@ class HtmlLocalizer
      * regions. Everything else — unknown text, comments, script bodies, non
      * whitelisted attribute values — passes through byte-identical. A skip
      * region spans HTML comments and only ends when every open skip tag,
-     * including same-name nested ones, has been closed. Each text segment goes
-     * through a single strtr() pass; a miss returns the original text untouched.
+     * including same-name nested ones, has been closed.
+     *
+     * Dictionary keys are applied in two tiers: a key without spaces matches a
+     * whole text node or attribute value only (trimmed, keeping the original
+     * leading and trailing whitespace), so single words like "Dashboard" can
+     * never bleed into "Dashboards" or other longer words; a key containing
+     * spaces is applied inside the segment through one strtr() pass, which
+     * prefers the longest matching phrase. A miss returns the original text
+     * untouched.
      *
      * @param  array<string, string>  $map  Full English phrase => translation.
      */
@@ -50,6 +64,8 @@ class HtmlLocalizer
         if ($html === '' || $map === []) {
             return $html;
         }
+
+        [$exact, $phrases] = self::splitMap($map);
 
         $parts = preg_split(self::COMMENT_SPLIT, $html, -1, PREG_SPLIT_DELIM_CAPTURE);
         if ($parts === false) {
@@ -67,7 +83,7 @@ class HtmlLocalizer
             if (str_starts_with($part, '<!--')) {
                 $result .= $part;
             } else {
-                $result .= self::translateSegments($part, $map, $skipStack);
+                $result .= self::translateSegments($part, $exact, $phrases, $skipStack);
             }
         }
 
@@ -75,13 +91,54 @@ class HtmlLocalizer
     }
 
     /**
+     * Split the dictionary into whole-segment exact matches (keys without
+     * spaces) and in-segment phrase replacements (keys containing spaces).
+     *
+     * @param  array<string, string>  $map
+     * @return array{0: array<string, string>, 1: array<string, string>}
+     */
+    private static function splitMap(array $map): array
+    {
+        $exact = [];
+        $phrases = [];
+
+        foreach ($map as $english => $translated) {
+            if (str_contains((string) $english, ' ')) {
+                $phrases[$english] = $translated;
+            } else {
+                $exact[(string) $english] = $translated;
+            }
+        }
+
+        return [$exact, $phrases];
+    }
+
+    /**
+     * Translate one text segment or whitelisted attribute value: a whole-value
+     * exact match first (keeping the original surrounding whitespace), then one
+     * phrase pass over the value.
+     *
+     * @param  array<string, string>  $exact
+     * @param  array<string, string>  $phrases
+     */
+    private static function translateText(string $text, array $exact, array $phrases): string
+    {
+        if ($exact !== [] && preg_match(self::TRIMMED_SEGMENT, $text, $matches) === 1 && isset($exact[$matches[2]])) {
+            return $matches[1].$exact[$matches[2]].$matches[3];
+        }
+
+        return strtr($text, $phrases);
+    }
+
+    /**
      * Walk the tag/text segments of an HTML chunk, continuing the skip-region
      * stack that spans chunks (comments are interleaved and preserved verbatim).
      *
-     * @param  array<string, string>  $map
+     * @param  array<string, string>  $exact
+     * @param  array<string, string>  $phrases
      * @param  list<string>  $skipStack
      */
-    private static function translateSegments(string $html, array $map, array &$skipStack): string
+    private static function translateSegments(string $html, array $exact, array $phrases, array &$skipStack): string
     {
         $segments = preg_split(self::TAG_SPLIT, $html, -1, PREG_SPLIT_DELIM_CAPTURE);
         if ($segments === false) {
@@ -96,9 +153,9 @@ class HtmlLocalizer
             }
 
             if ($index % 2 === 1) {
-                $result .= self::translateTag($segment, $map, $skipStack);
+                $result .= self::translateTag($segment, $exact, $phrases, $skipStack);
             } elseif ($skipStack === []) {
-                $result .= strtr($segment, $map);
+                $result .= self::translateText($segment, $exact, $phrases);
             } else {
                 $result .= $segment;
             }
@@ -117,10 +174,11 @@ class HtmlLocalizer
      * closes the innermost matching open tag and everything opened after it,
      * which recovers from mismatched nesting.
      *
-     * @param  array<string, string>  $map
+     * @param  array<string, string>  $exact
+     * @param  array<string, string>  $phrases
      * @param  list<string>  $skipStack
      */
-    private static function translateTag(string $tag, array $map, array &$skipStack): string
+    private static function translateTag(string $tag, array $exact, array $phrases, array &$skipStack): string
     {
         if (preg_match('/^<\/\s*([a-zA-Z][a-zA-Z0-9:_-]*)/', $tag, $matches) === 1) {
             $keys = array_keys($skipStack, strtolower($matches[1]), true);
@@ -144,19 +202,20 @@ class HtmlLocalizer
             }
         }
 
-        return self::translateAttributes($tag, $map);
+        return self::translateAttributes($tag, $exact, $phrases);
     }
 
     /**
      * Translate the values of whitelisted attributes inside one tag segment.
      *
-     * @param  array<string, string>  $map
+     * @param  array<string, string>  $exact
+     * @param  array<string, string>  $phrases
      */
-    private static function translateAttributes(string $tag, array $map): string
+    private static function translateAttributes(string $tag, array $exact, array $phrases): string
     {
         return preg_replace_callback(
             self::TRANSLATABLE_ATTRIBUTE,
-            fn (array $matches): string => $matches[1].$matches[2].strtr($matches[3], $map).$matches[2],
+            fn (array $matches): string => $matches[1].$matches[2].self::translateText($matches[3], $exact, $phrases).$matches[2],
             $tag,
         ) ?? $tag;
     }

@@ -58,3 +58,32 @@ test('keeps tags with unclosed quoted values intact', function () use ($map) {
     $html = '<div data-x="Deploy>y</div>';
     expect(HtmlLocalizer::translate($html, $map))->toBe($html);
 });
+
+test('single word keys match whole nodes only and never substrings', function () {
+    $map = ['Dashboard' => '仪表盘'];
+    expect(HtmlLocalizer::translate('<span>Dashboard</span>', $map))->toBe('<span>仪表盘</span>')
+        ->and(HtmlLocalizer::translate('<span>Dashboards</span>', $map))->toBe('<span>Dashboards</span>')
+        ->and(HtmlLocalizer::translate('<div>Dashboard | Coolify</div>', $map))->toBe('<div>Dashboard | Coolify</div>');
+});
+
+test('exact match keeps surrounding whitespace of the segment', function () {
+    $map = ['Servers' => '服务器'];
+    expect(HtmlLocalizer::translate('<span> Servers </span>', $map))->toBe('<span> 服务器 </span>');
+});
+
+test('exact match does not bleed into longer words inside a segment', function () {
+    $map = ['Add' => '添加', 'Address' => '地址'];
+    expect(HtmlLocalizer::translate('<span>Address</span>', $map))->toBe('<span>地址</span>');
+});
+
+test('phrase keys still apply inside longer segments', function () {
+    $map = ['New Project' => '新项目', 'New Projects' => '新项目列表'];
+    expect(HtmlLocalizer::translate('<span>New Projects</span>', $map))->toBe('<span>新项目列表</span>')
+        ->and(HtmlLocalizer::translate('<div>Create a New Project now</div>', $map))->toBe('<div>Create a 新项目 now</div>');
+});
+
+test('attribute values get the exact tier too', function () {
+    $map = ['Dashboard' => '仪表盘'];
+    expect(HtmlLocalizer::translate('<input placeholder="Dashboard">', $map))->toBe('<input placeholder="仪表盘">')
+        ->and(HtmlLocalizer::translate('<input aria-label="Dashboards overview">', $map))->toBe('<input aria-label="Dashboards overview">');
+});
