@@ -85,4 +85,5 @@ return [
     'Open service links' => '打开服务链接',
     'This application does not expose any ports and will not be reachable through the proxy or your domains. This behavior is normal for background workers, bots, or scheduled tasks. If your application needs to handle HTTP traffic, please specify the port(s) it listens on.' => '此应用未暴露任何端口，将无法通过代理或你的域名访问。对后台任务、机器人或计划任务而言这是正常行为。若应用需要处理 HTTP 流量，请填写它监听的端口。',
     'This application has persistent storage volumes. Applications with persistent storage cannot use multiple servers because those volumes are not shared between hosts.' => '此应用拥有持久化存储卷。有持久化存储的应用无法使用多服务器部署，因为卷不能在主机之间共享。',
+    'Build &amp; deploy' => '构建与部署',
 ];

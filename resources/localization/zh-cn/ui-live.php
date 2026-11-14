@@ -91,4 +91,9 @@ return [
     'This is the server where Coolify is running on. Don\'t delete this!' => '这是运行 Coolify 的服务器，不要删除！',
     'Only build servers are available. Add or reconfigure a server before continuing.' => '只有构建服务器可用，请先添加或重新配置服务器再继续。',
     'If you cannot connect, confirm the server is reachable and that the terminal port is open on the firewall.' => '无法连接时，请确认服务器可达且防火墙已放行终端端口。',
+    'Refresh Details' => '刷新详情',
+    'Revalidate Connection' => '重新验证连接',
+    'CA Certificate' => 'CA 证书',
+    'Log Drains' => '日志外发',
+    'Architecture' => '架构',
 ];
