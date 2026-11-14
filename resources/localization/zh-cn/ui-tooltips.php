@@ -331,4 +331,7 @@ return [
     "What's New" => '更新日志',
     'Your configuration changed, please restart the proxy.' => '配置已更改，请重启代理。',
     'Image scanning' => '镜像扫描',
+    'Registries' => '镜像仓库',
+    'Multi-server login' => '多服务器登录',
+    'Log in to any registry once and reuse it on every server' => '登录任意镜像仓库一次，所有服务器复用',
 ];
