@@ -87,3 +87,11 @@ test('attribute values get the exact tier too', function () {
     expect(HtmlLocalizer::translate('<input placeholder="Dashboard">', $map))->toBe('<input placeholder="仪表盘">')
         ->and(HtmlLocalizer::translate('<input aria-label="Dashboards overview">', $map))->toBe('<input aria-label="Dashboards overview">');
 });
+
+test('data-tooltip attribute values are translated', function () {
+    $map = ['Deployment commands' => '部署命令', 'Connection' => '连接'];
+    expect(HtmlLocalizer::translate('<span data-tooltip="Deployment commands">i</span>', $map))
+        ->toBe('<span data-tooltip="部署命令">i</span>')
+        ->and(HtmlLocalizer::translate('<span data-tooltip="Connection">i</span>', $map))
+        ->toBe('<span data-tooltip="连接">i</span>');
+});

@@ -30,7 +30,7 @@ class HtmlLocalizer
      * Matches a whitelisted attribute assignment with a single- or double-quoted
      * value; the value is captured for translation.
      */
-    private const TRANSLATABLE_ATTRIBUTE = '~(\s(?:title|placeholder|aria-label)\s*=\s*)(["\'])(.*?)\2~is';
+    private const TRANSLATABLE_ATTRIBUTE = '~(\s(?:title|placeholder|aria-label|data-tooltip)\s*=\s*)(["\'])(.*?)\2~is';
 
     /**
      * Captures the leading whitespace, the trimmed body, and the trailing
