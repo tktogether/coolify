@@ -54,7 +54,5 @@ return [
     'Search this page and everything (Press / or Ctrl+K, then Tab to switch)' => '搜索本页与全部内容（按 / 或 Ctrl+K，Tab 切换）',
     'Refresh details' => '刷新详情',
     'Revalidate connection' => '重新验证连接',
-    'No matching timezone' => '没有匹配的时区',
-    'About unconfigured healthchecks' => '关于未配置的健康检查',
     'Optional path, query, or fragment appended after the domain and port.' => '域名与端口之后可选附加的路径、查询或片段。',
 ];
