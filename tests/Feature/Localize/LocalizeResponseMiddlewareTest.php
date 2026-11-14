@@ -24,16 +24,26 @@ beforeEach(function () {
     ]);
 });
 
-test('login page is translated', function () {
+test('login page is translated and gets the client companion script', function () {
     $this->get('/login')
         ->assertOk()
         ->assertSee('登录')
-        ->assertSee('登录以管理你的应用与基础设施。');
+        ->assertSee('登录以管理你的应用与基础设施。')
+        ->assertSee('js/localize-client.js');
+});
+
+test('client script is injected before the last closing body tag', function () {
+    $content = $this->get('/login')->getContent();
+    $scriptPosition = mb_strrpos($content, 'js/localize-client.js');
+    $bodyPosition = mb_strripos($content, '</body>');
+    expect($scriptPosition)->toBeInt()
+        ->and($bodyPosition)->toBeInt()
+        ->and($scriptPosition)->toBeLessThan($bodyPosition);
 });
 
 test('localize off keeps upstream output', function () {
     config()->set('localize.enabled', false);
-    $this->get('/login')->assertOk()->assertSee('Login')->assertDontSee('登录');
+    $this->get('/login')->assertOk()->assertSee('Login')->assertDontSee('登录')->assertDontSee('localize-client.js');
 });
 
 test('non html and non json responses pass through untouched', function () {

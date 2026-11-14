@@ -20,9 +20,17 @@ use Symfony\Component\HttpFoundation\Response;
  * passes through byte-identical. When `localize.enabled` is false nothing is
  * touched at all. Any exception inside the translation step returns the
  * original response, so a broken dictionary can never break a page.
+ *
+ * HTML pages also get the client companion script (public/js/localize-client.js)
+ * appended before </body>: it exact-matches a small whitelist of enum words that
+ * Alpine renders client-side from Livewire data (x-text), which the server-side
+ * pass can never reach. The whitelist only contains fixed UI words and matches
+ * whole trimmed text nodes, so user data is never touched.
  */
 class LocalizeResponse
 {
+    private const CLIENT_SCRIPT = '<script src="/js/localize-client.js" defer></script>';
+
     public function handle(Request $request, Closure $next): Response
     {
         $response = $next($request);
@@ -59,6 +67,10 @@ class LocalizeResponse
                 ? HtmlLocalizer::translate($content, $map)
                 : LivewirePayloadLocalizer::translate($content, $map);
 
+            if (str_contains($contentType, 'text/html') && str_contains($translated, '</body>')) {
+                $translated = $this->injectClientScript($translated);
+            }
+
             if ($translated === $content) {
                 return $response;
             }
@@ -72,5 +84,23 @@ class LocalizeResponse
 
             return $response;
         }
+    }
+
+    /**
+     * Append the client companion script before the last </body> tag. The tag
+     * carries a version fingerprint so browsers refetch it when the file
+     * changes with a new image.
+     */
+    private function injectClientScript(string $html): string
+    {
+        $version = substr(sha1((string) filemtime(public_path('js/localize-client.js'))), 0, 10);
+        $tag = '<script src="/js/localize-client.js?v='.$version.'" defer></script>';
+        $position = strripos($html, '</body>');
+
+        if ($position === false) {
+            return $html;
+        }
+
+        return substr_replace($html, $tag, $position, 0);
     }
 }
