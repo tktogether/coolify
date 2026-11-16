@@ -1,7 +1,7 @@
 <?php
 
-/* 空状态提示、组件 prop 与表单标签批次：这些文案来自组件 description、label、
-   title 等 prop，渲染后成为普通文本节点，此前从未被覆盖。含占位洞的句子不收录。 */
+/* 空状态提示、组件 prop 与表单标签批次，以及 lang/en 里经 __() 渲染的密码
+   重置提示与仓库 URL 说明。 */
 
 return [
     'A resource () has been restarted automatically on , because it was stopped unexpectedly. Coolify Proxy should run on your server as you have FQDNs set up in one of your resources. If you don\'t want to use Coolify Proxy, please remove FQDN from your resources or set Proxy type to Custom(None).' => '一个资源已被自动重启，原因是它意外停止了。由于你的某个资源设置了 FQDN，Coolify 代理应当运行在你的服务器上。如果你不想使用 Coolify 代理，请从资源中移除 FQDN，或将代理类型设为 Custom(None)。',
@@ -582,4 +582,8 @@ return [
     '· finished' => '· 已完成',
     '· ran' => '· 已运行',
     '⚠️ Action Required:' => '⚠️ 需要操作：',
+    'Your password has been reset.' => '你的密码已重置。',
+    'Please wait before retrying.' => '请稍后再试。',
+    'This password reset token is invalid.' => '此密码重置令牌无效。',
+    'branch will be selected.' => '分支将被选中。',
 ];

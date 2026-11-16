@@ -49,6 +49,77 @@ class BladeTextExtractor
     private const BRANCH_MARKER = "\x1A";
 
     /**
+     * The string literals inside a bound prop: the 'A' and 'B' of
+     * :title="cond ? 'A' : 'B'".
+     *
+     * A component prints the chosen value as a text node, so each literal is
+     * copy a user can read. Paths, identifiers, and class lists are skipped.
+     *
+     * The expression is scanned character by character rather than with a quote
+     * regex: a common guard such as trim($q) !== '' pairs neighbouring quotes and
+     * would swallow the literals between them.
+     *
+     * @return list<string>
+     */
+    private static function boundPropLiterals(string $source): array
+    {
+        $props = 'title|description|label|placeholder|helper|buttonTitle|emptyText|heading|subtitle|tooltip';
+
+        // The alternation needs its own group: without it the pattern reads as
+        // ":title" OR "description" OR …, and only the first branch matches.
+        if (preg_match_all('/:('.$props.')\s*=\s*"([^"]*)"/s', $source, $matches) === 0) {
+            return [];
+        }
+
+        $found = [];
+
+        foreach ($matches[2] as $expression) {
+            $length = strlen($expression);
+            $quote = null;
+            $buffer = '';
+
+            for ($index = 0; $index < $length; $index++) {
+                $char = $expression[$index];
+
+                if ($quote === null) {
+                    if ($char === "'" || $char === '"') {
+                        $quote = $char;
+                        $buffer = '';
+                    }
+
+                    continue;
+                }
+
+                if ($char === '\\' && $index + 1 < $length) {
+                    $buffer .= $expression[$index + 1];
+                    $index++;
+
+                    continue;
+                }
+
+                if ($char === $quote) {
+                    $quote = null;
+
+                    $value = trim((string) preg_replace('/\s+/u', ' ', $buffer));
+
+                    if (mb_strlen($value) >= 4
+                        && preg_match('/[A-Za-z]{3,}/', $value) === 1
+                        && preg_match('/^[a-z0-9_.\-\/]+$/i', $value) !== 1
+                        && preg_match('/^(https?:\/\/|\/|\.)/', $value) !== 1) {
+                        $found[] = $value;
+                    }
+
+                    continue;
+                }
+
+                $buffer .= $char;
+            }
+        }
+
+        return array_values(array_unique($found));
+    }
+
+    /**
      * The static text at the start of an interpolated prop value, for example
      * "Delete" from title="Delete {{ $resourceLabel }}".
      *
@@ -100,6 +171,14 @@ class BladeTextExtractor
         // the first words of the rendered text node.
         foreach (self::interpolatedPropPrefixes($source) as $prefix) {
             $found[] = $prefix;
+        }
+
+        // A bound prop holds a PHP expression, and its string literals are the
+        // copy the component renders: :title="trim($q) !== '' ? 'No matching
+        // resources' : 'No managed resources'". The attribute pattern below
+        // deliberately skips the `:` form, so these need their own pass.
+        foreach (self::boundPropLiterals($source) as $literal) {
+            $found[] = $literal;
         }
 
         // PHP array values in the original source: a bound option list such as

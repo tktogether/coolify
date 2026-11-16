@@ -19,6 +19,7 @@
 < wire:key="analytics-app-" href=""
 > > Backups | Coolify
 > | Coolify
+A comma separated list of ports your application uses. The first port will be used as default healthcheck port if nothing defined in the Healthcheck menu. Be sure to set this correctly.<br><br>
 acme.json backups
 Actor
 Add a token to manage this server through
@@ -64,6 +65,7 @@ Cosmic Lagoon
 Cosmic Purple
 curl -fsS
 daily or 0 0 * * *
+data for the selected range.
 Database name
 Delete Certificate
 Delete Certificates
@@ -76,9 +78,11 @@ Delete the login for
 Delete token
 Delete unused ()
 deploy-canvas-session
+Derived in Compose
 description
 Destination Name
 destinations
+Disable maintenance
 Docker compose content (applicationId:
 docker logs coolify
 docker restart coolify
@@ -122,6 +126,7 @@ identifier
 Image scanning is off for
 Infisical
 Job
+K, then Tab to switch)
 KEY=
 key=value
 KEY=value #comment
@@ -136,6 +141,7 @@ main
 managed
 MariaDB
 mariadb-data-
+Match *
 Midnight
 Mode:
 MongoDB
@@ -146,6 +152,8 @@ my-app/production
 MySQL
 mysql-data-
 name
+Name forward
+Name stdout
 Neon Glow
 Neon Nebula
 never
@@ -194,6 +202,7 @@ projects
 pv-name
 read_repository
 read_user
+Readonly labels are disabled. You can set the ports manually in the labels section.<br><br>
 Redeploy all
 Redeploy All
 redis-data-
@@ -211,11 +220,13 @@ required|string|max:255
 requires two-factor authentication. Configure it to continue.
 Reset configuration
 Reset Configuration
+Resource status
 responses ·
 Restart Database
 Restore defaults
 Revoke token
 Roll token
+Rotation result
 RSA 4096
 Run
 Run cleanup
@@ -223,12 +234,20 @@ Save certificate
 Save Certificate
 schedule
 scope.
+Search (Press / or
+Search resources, paths, everything (type new for create)...
+Search this page and everything (Press / or
+Search this page…
 secret
 Security:
+Select firewalls
+Select networks
+Select SSH keys
 SendGrid
 sentinel:latest
 server
 servers
+servers do not scan images.
 services/api/**
 sources
 SQLite
@@ -246,27 +265,38 @@ Task name
 Team name
 teammate.com
 test.com
+The member gets these scopes when they accept the invitation.
+The request could not be understood by the server due to malformed syntax.
+The scanner images are on this server.
+The vulnerability database is up to date.
 Timeout
+TLS certificate management is available for the Traefik proxy.
 to create more .
 to get started.
 to:
 token
 Token description
 Traefik
+Traefik required
 traefik:
 Transfer
+Transfer failed
 Tropical Storm
+Try another repository, tag or ID, or clear the search.
 unapplied.
 Unused
 Update selected
 upgrade guide
 upgrade your subscription
+URL (internal)
+URL (public)
 us-east-1
 us-east-1.aws.edge.axiom.co
 use this tag.
 used by database and volume backups.
 User
 User name
+Validate this server before viewing its TLS certificates.
 variables →
 Vultr
 Waiting
