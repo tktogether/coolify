@@ -318,14 +318,15 @@ class BladeTextExtractor
      */
     public static function fromPhpArrayValues(string $source): array
     {
+        $found = self::callLabelArguments($source);
+
         $pattern = '/[\'"](name|description|title|label|helper|placeholder)[\'"]\s*=>\s*'
             .'(?:\'((?:[^\'\\\\]|\\\\.)*)\'|"((?:[^"\\\\]|\\\\.)*)")/s';
 
         if (preg_match_all($pattern, $source, $matches, PREG_SET_ORDER) === 0) {
-            return [];
+            return array_values(array_unique($found));
         }
 
-        $found = [];
         foreach ($matches as $match) {
             // Group 2 is the single-quoted value, group 3 the double-quoted one.
             $raw = ($match[2] ?? '') !== '' ? $match[2] : ($match[3] ?? '');
@@ -352,6 +353,34 @@ class BladeTextExtractor
         }
 
         return array_values(array_unique($found));
+    }
+
+    /**
+     * Display labels passed as a positional argument, such as the second one in
+     * `$this->item('key', 'Container labels', …)`.
+     *
+     * The configuration diff builds its rows this way: the key is technical, the
+     * label is what the page shows next to the value. Nothing in an array carries
+     * it, so the array reader cannot find it.
+     *
+     * @return list<string>
+     */
+    private static function callLabelArguments(string $source): array
+    {
+        if (preg_match_all('/->item\(\s*\'[^\']*\'\s*,\s*\'((?:[^\'\\\\]|\\\\.)*)\'/s', $source, $matches) === 0) {
+            return [];
+        }
+
+        $found = [];
+        foreach ($matches[1] as $raw) {
+            $value = trim((string) preg_replace('/\s+/u', ' ', str_replace("\\'", "'", $raw)));
+
+            if ($value !== '') {
+                $found[] = $value;
+            }
+        }
+
+        return $found;
     }
 
     /**

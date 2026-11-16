@@ -41,7 +41,6 @@ bcrypt
 billing
 Blur Black
 Brevo
-Build
 Caddy
 Cancel Immediately
 Cancel Runner
@@ -118,6 +117,8 @@ has no EXPOSE instruction, so the default port is used.
 Hetzner
 hottest,
 http
+HTTP basic auth Argon2id iterations
+HTTP basic auth Argon2id memory (KiB)
 https
 Icy Mist
 identifier
