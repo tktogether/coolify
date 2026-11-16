@@ -111,12 +111,12 @@ class HtmlLocalizer
         foreach ($map as $english => $translated) {
             $english = (string) $english;
             $isPhrase = str_contains($english, ' ');
-            // Raw HTML stores & as &amp;, so keys containing & also get an entity variant.
-            $variants = [$english];
-            if (str_contains($english, '&') && ! str_contains($english, '&amp;')) {
-                $variants[] = str_replace('&', '&amp;', $english);
-            }
-            foreach ($variants as $variant) {
+            // Blade's {{ }} escapes the value, so the HTML a browser receives
+            // holds entities where the template had characters. A key has to be
+            // registered in that escaped form too, or it can never match: a
+            // sentence containing an apostrophe reached the page as
+            // "Traefik&#039;s …" while the dictionary said "Traefik's …".
+            foreach (self::entityVariants($english) as $variant) {
                 if ($isPhrase) {
                     $phrases[$variant] = $translated;
                 } else {
@@ -126,6 +126,26 @@ class HtmlLocalizer
         }
 
         return [$exact, $phrases, self::indexPhrases($phrases)];
+    }
+
+    /**
+     * The raw key plus every escaped form Blade can produce for it.
+     *
+     * `e()` (called by `{{ }}`) uses htmlspecialchars with ENT_QUOTES, which
+     * turns `&`, `'`, and `"` into entities. A quoted attribute value and a text
+     * node go through the same escaping, so both forms are registered.
+     *
+     * @return list<string>
+     */
+    private static function entityVariants(string $english): array
+    {
+        if (preg_match('/[&\'"]/', $english) !== 1) {
+            return [$english];
+        }
+
+        $escaped = htmlspecialchars($english, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8', true);
+
+        return $escaped === $english ? [$english] : [$english, $escaped];
     }
 
     /**

@@ -189,3 +189,30 @@ test('translating a page does not scale with the dictionary size', function () {
     // took seconds for this many nodes.
     expect($elapsed)->toBeLessThan(1.5);
 });
+
+test('a key containing an apostrophe matches the escaped blade output', function () {
+    // {{ $value }} calls e(), which turns ' into &#039;. The dictionary holds the
+    // readable form, so the matcher has to accept the escaped one too — otherwise
+    // every sentence with an apostrophe stayed English.
+    $map = ["Traefik's ACME storage is empty." => 'Traefik 的 ACME 存储为空。'];
+
+    expect(HtmlLocalizer::translate('<p>Traefik&#039;s ACME storage is empty.</p>', $map))
+        ->toBe('<p>Traefik 的 ACME 存储为空。</p>')
+        // The unescaped form keeps working for text that never went through e().
+        ->and(HtmlLocalizer::translate("<p>Traefik's ACME storage is empty.</p>", $map))
+        ->toBe('<p>Traefik 的 ACME 存储为空。</p>');
+});
+
+test('a key containing a double quote matches the escaped blade output', function () {
+    $map = ['Type "cleanup" to confirm.' => '输入 “cleanup” 以确认。'];
+
+    expect(HtmlLocalizer::translate('<p>Type &quot;cleanup&quot; to confirm.</p>', $map))
+        ->toBe('<p>输入 “cleanup” 以确认。</p>');
+});
+
+test('a key containing an ampersand still matches its escaped form', function () {
+    $map = ['Keys & Tokens' => '密钥与令牌'];
+
+    expect(HtmlLocalizer::translate('<span>Keys &amp; Tokens</span>', $map))
+        ->toBe('<span>密钥与令牌</span>');
+});
