@@ -143,7 +143,7 @@ class HtmlLocalizer
             return $matches[1].$exact[$matches[2]].$matches[3];
         }
 
-        $translated = strtr($text, $phrases);
+        $translated = self::replacePhrases($text, $phrases);
 
         if ($translated !== $text || $phrases === []) {
             return $translated;
@@ -160,9 +160,133 @@ class HtmlLocalizer
         }
 
         $collapsed = $matches[1].$collapsedBody.$matches[3];
-        $translated = strtr($collapsed, $phrases);
+        $translated = self::replacePhrases($collapsed, $phrases);
 
         return $translated === $collapsed ? $text : $translated;
+    }
+
+    /**
+     * Replace every phrase key in the text, honouring word boundaries, and let the
+     * longest key win.
+     *
+     * Plain strtr() replaces on byte boundaries, so a key such as
+     * "This resource" also hit the first two words of
+     * "This resource cannot be restored …" and left the rest of the sentence in
+     * English. The same rule made "API Token" replace the stem of "API Tokens" and
+     * leave a stray "s". A key now only matches when the character before it and
+     * the character after it are not part of a word, and when no longer key
+     * covers the same span.
+     *
+     * @param  array<string, string>  $phrases
+     */
+    private static function replacePhrases(string $text, array $phrases): string
+    {
+        if ($phrases === [] || $text === '') {
+            return $text;
+        }
+
+        // Longest first: a sentence key must beat the fragment key it contains.
+        $keys = array_keys($phrases);
+        usort($keys, static fn (string $a, string $b): int => mb_strlen($b) <=> mb_strlen($a));
+
+        $result = $text;
+
+        foreach ($keys as $key) {
+            if ($key === '' || ! str_contains($result, $key)) {
+                continue;
+            }
+
+            $pattern = '/(?<![\p{L}\p{N}_])'.preg_quote($key, '/').'(?![\p{L}\p{N}_])/u';
+
+            if (@preg_match($pattern, '') === false) {
+                continue;
+            }
+
+            if (preg_match_all($pattern, $result, $hits, PREG_OFFSET_CAPTURE) === 0) {
+                continue;
+            }
+
+            // A key only replaces a span that stands on its own. A match that is
+            // followed by more words of the same sentence (", plus", "cannot be",
+            // "of the …") is a prefix, and translating only the prefix is what
+            // produced half-Chinese output. A key at the end of the segment, or
+            // one followed by punctuation, is a complete phrase.
+            $result = self::replaceCompleteMatches($result, $pattern, $key, $phrases[$key]);
+        }
+
+        return $result;
+    }
+
+    /**
+     * Replace the matches of one key that cover a whole clause, not a prefix of a
+     * longer sentence.
+     *
+     * The rule: a match must not be followed by a lowercase word, because that
+     * means the sentence continues and the key was only its first words. This is
+     * what turned "This resource cannot be restored …" into "此资源 cannot be
+     * restored …". Punctuation, the end of the segment, or a capitalised next
+     * word (a label, a list, a title) count as a complete phrase.
+     */
+    private static function replaceCompleteMatches(string $text, string $pattern, string $key, string $translation): string
+    {
+        if (preg_match_all($pattern, $text, $hits, PREG_OFFSET_CAPTURE) === 0) {
+            return $text;
+        }
+
+        $length = strlen($text);
+        $result = '';
+        $cursor = 0;
+
+        foreach ($hits[0] as [$match, $offset]) {
+            $after = $offset + strlen($match);
+
+            if (! self::isClauseEnd($text, $after, $length)) {
+                continue;
+            }
+
+            $result .= substr($text, $cursor, $offset - $cursor).$translation;
+            $cursor = $after;
+        }
+
+        if ($cursor === 0) {
+            return $text;
+        }
+
+        return $result.substr($text, $cursor);
+    }
+
+    /**
+     * True when the text after $offset does not continue the sentence with more
+     * words of the same clause.
+     *
+     * A match is complete when the segment ends right after it, or when the next
+     * non-space character is punctuation: that covers "Servers, and more",
+     * "Dashboard | Coolify", "Running (healthy)". Only a space followed by a
+     * plain lowercase word continues the sentence — which is what made
+     * "This resource cannot be restored …" render as "此资源 cannot be restored …".
+     */
+    private static function isClauseEnd(string $text, int $offset, int $length): bool
+    {
+        if ($offset >= $length) {
+            return true;
+        }
+
+        $rest = substr($text, $offset, 16);
+        $trimmed = ltrim($rest);
+
+        if ($trimmed === '') {
+            return true;
+        }
+
+        $first = $trimmed[0];
+
+        // Punctuation separates this phrase from what follows.
+        if (preg_match('/^[!-,\.\/:-@\[-`{-~]/', $first) === 1) {
+            return true;
+        }
+
+        // A lowercase ASCII letter right after a space continues the sentence.
+        return preg_match('/^[a-z]/', $first) !== 1;
     }
 
     /**

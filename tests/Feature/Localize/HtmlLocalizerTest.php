@@ -79,7 +79,41 @@ test('exact match does not bleed into longer words inside a segment', function (
 test('phrase keys still apply inside longer segments', function () {
     $map = ['New Project' => '新项目', 'New Projects' => '新项目列表'];
     expect(HtmlLocalizer::translate('<span>New Projects</span>', $map))->toBe('<span>新项目列表</span>')
-        ->and(HtmlLocalizer::translate('<div>Create a New Project now</div>', $map))->toBe('<div>Create a 新项目 now</div>');
+        // A key followed by more lowercase words is the start of a longer
+        // sentence, not a phrase to translate: replacing it left the rest English.
+        ->and(HtmlLocalizer::translate('<div>Create a New Project now</div>', $map))->toBe('<div>Create a New Project now</div>');
+});
+
+test('a phrase key does not translate the start of a longer sentence', function () {
+    $map = ['This resource' => '此资源'];
+
+    expect(HtmlLocalizer::translate('<li>This resource cannot be restored after deletion.</li>', $map))
+        ->toBe('<li>This resource cannot be restored after deletion.</li>')
+        ->and(HtmlLocalizer::translate('<span>This resource</span>', $map))
+        ->toBe('<span>此资源</span>')
+        ->and(HtmlLocalizer::translate('<li>This resource, and its volumes, stay.</li>', $map))
+        ->toBe('<li>此资源, and its volumes, stay.</li>');
+});
+
+test('a whole sentence key wins over the fragment it contains', function () {
+    $map = [
+        'This resource' => '此资源',
+        'This resource cannot be restored after deletion.' => '此资源在删除后无法从 Coolify 恢复。',
+    ];
+
+    expect(HtmlLocalizer::translate('<li>This resource cannot be restored after deletion.</li>', $map))
+        ->toBe('<li>此资源在删除后无法从 Coolify 恢复。</li>');
+});
+
+test('a singular key does not eat the plural suffix', function () {
+    $map = ['API Token' => 'API 令牌', 'API Tokens' => 'API 令牌列表'];
+
+    expect(HtmlLocalizer::translate('<span>API Tokens</span>', $map))->toBe('<span>API 令牌列表</span>')
+        ->and(HtmlLocalizer::translate('<span>API Token</span>', $map))->toBe('<span>API 令牌</span>')
+        // With only the singular key, the plural stays untouched instead of
+        // becoming "API 令牌s".
+        ->and(HtmlLocalizer::translate('<span>API Tokens</span>', ['API Token' => 'API 令牌']))
+        ->toBe('<span>API Tokens</span>');
 });
 
 test('attribute values get the exact tier too', function () {

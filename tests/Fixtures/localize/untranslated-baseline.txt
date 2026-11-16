@@ -1,0 +1,150 @@
+# Strings the Blade text coverage test accepts as English on purpose.
+# Regenerate with `php artisan localize:baseline` after a reviewed run.
+"" backups: All backups were successful.
+"" backups: There were some failed backups. Please login and check the logs for more details.
++ more Make this application available from a URL
+, and
+, or run
+- A reboot is required to apply installed updates.
+- of
+. Per-resource traffic analytics and current Caddy features need version 2.9 or newer. To fix this, change the image in the proxy configuration to
+. Status notifications can be managed from
+. The kernel that starts after a reboot has the fix. Reboot the server to use it. No risk now: the server does not run this kernel (it runs
+. Visit
+.env
+< wire:key="analytics-app-" href=""
+> > Backups | Coolify
+> | Coolify
+acme.json backups
+Actor
+admin/team-a
+again.
+All
+alpine
+alt
+api
+as base directory
+Axiom
+backup
+backups/coolify
+billing
+cloudflare
+Coolify
+coolify
+coolify-file-downloads/
+coolify-sentinel
+copy
+curl -fsS
+daily or 0 0 * * *
+docker logs coolify
+docker restart coolify
+docker/
+dockerfile
+docs
+domain
+domains set.
+e.g. my-api
+e.g., production-app-server
+e.g., production-server-key
+environments
+file.
+for
+git.com:owner/repository.git
+has no EXPOSE instruction, so the default port is used.
+Hetzner
+hottest,
+Job
+KEY=
+key=value
+KEY=value #comment
+latest
+letsencrypt
+localhost
+main
+managed
+Mode:
+Moved
+my-app/production
+never
+nginx
+nginx, ghcr.io/user/app:v1.2.3, or nginx:stable:…
+notifications
+Off
+offline
+on .
+or the
+or upload
+other
+p95 latency
+package updates are available for your server . ## Summary - Operating System: - Package Manager: - Total Updates: - Security Updates:
+page.
+Parser
+paste
+Paused
+php
+Plan
+Please
+plugins
+PostGIS
+postgres://username:password:5432
+PostShiba production
+PR #
+pr-1234
+prd
+prod
+production
+production api customer-a
+projects
+pv-name
+read_repository
+read_user
+requests remaining
+requires two-factor authentication. Configure it to continue.
+responses ·
+Run
+schedule
+scope.
+secret
+sentinel:latest
+servers
+services/api/**
+src/pages/**
+ST …
+staging
+subscription
+tab
+tag. Pin
+teammate.com
+test.com
+The host keys that git over SSH accepts for self-hosted Git hosts. On the first deployment, Coolify saves the key that the host sends, and later deployments fail if the key changes. To accept a new key (also of a submodule host), click Fetch current host key, compare the fingerprint with the fingerprint from the administrator of the Git host, and click Accept. GitHub, GitLab.com, and Bitbucket Cloud always accept their published keys. If GitHub or Bitbucket Cloud changes its keys, click Fetch current host key to read the new keys from their official HTTPS endpoint. If GitLab.com changes its keys, click Fetch current host key and compare the fingerprint with the keys on docs.gitlab.com.
+The username and password or access token Coolify uses to clone a private repository from a custom Git host (Azure DevOps, Bitbucket, Gitea, and others) over HTTP(S). Coolify sends them only to the host of the repository URL and never shows the saved password or token.
+Timeout
+to create more .
+to get started.
+to:
+token
+Traefik
+traefik:
+unapplied.
+Unused
+upgrade guide
+upgrade your subscription
+us-east-1
+us-east-1.aws.edge.axiom.co
+use this tag.
+used by database and volume backups.
+User
+variables →
+Vultr
+Waiting
+weekly (default, on Sunday)
+will be cloned.
+will be deactivated
+with frequency of succeeded locally but failed to upload to the backup storage. Storage Error: Check Storage Configuration:
+with frequency of was FAILED. ### Reason
+Working
+you
+You
+· /mo
+· · GB ·
+– of
