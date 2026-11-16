@@ -140,3 +140,30 @@ test('the extractor keeps a title that follows an echo', function () {
     expect(HtmlLocalizer::translate('<title>my-app > Backups | Coolify</title>', $map))
         ->toBe('<title>my-app  > 备份 | Coolify</title>');
 });
+
+test('the extractor reads the static prefix of an interpolated prop', function () {
+    // title="Delete {{ $resourceLabel }}" renders as "Delete resource" in one
+    // text node, so the prefix is the part an entry has to start with.
+    $values = BladeTextExtractor::fromTemplate('<x-danger-zone title="Delete {{ $resourceLabel }}">x</x-danger-zone>');
+
+    expect($values)->toContain('Delete');
+
+    $values = BladeTextExtractor::fromTemplate('<x-a label="Delete the login for {{ $name }}?">x</x-a>');
+
+    expect($values)->toContain('Delete the login for');
+});
+
+test('the extractor skips a prop that starts with the echo', function () {
+    // No static text to translate, and the value is user data.
+    $values = BladeTextExtractor::fromTemplate('<x-a title="{{ $name }}">x</x-a>');
+
+    expect(implode(' ', $values))->not->toContain('$name');
+});
+
+test('an interpolated prop label translates once the value is known', function () {
+    $map = coverageDictionary();
+
+    // The rendered node the danger zone shows for a standalone database.
+    expect(HtmlLocalizer::translate('<h4>Delete resource</h4>', $map))->toBe('<h4>删除资源</h4>')
+        ->and(HtmlLocalizer::translate('<h4>Delete application</h4>', $map))->toBe('<h4>删除应用</h4>');
+});

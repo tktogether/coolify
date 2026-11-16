@@ -45,6 +45,43 @@ class BladeTextExtractor
     private const BRANCH_MARKER = "\x1A";
 
     /**
+     * The static text at the start of an interpolated prop value, for example
+     * "Delete" from title="Delete {{ $resourceLabel }}".
+     *
+     * Such a prop renders as "<static><value>" in one text node, so the value
+     * reaches the browser only combined with this prefix. The prefix alone cannot
+     * match the whole node, but it is the part a dictionary entry has to start
+     * with, and it is what a reviewer needs to see. A value that starts with the
+     * echo has no prefix and is skipped.
+     *
+     * @return list<string>
+     */
+    private static function interpolatedPropPrefixes(string $source): array
+    {
+        if (preg_match_all('/(?<![:\\w-])(?:title|placeholder|aria-label|data-tooltip|label|description)\s*=\s*"([^"]*\{\{.*?\}\}[^"]*)"/s', $source, $matches) === 0) {
+            return [];
+        }
+
+        $prefixes = [];
+        foreach ($matches[1] as $value) {
+            $position = strpos($value, '{{');
+            if ($position === false) {
+                continue;
+            }
+
+            $prefix = trim((string) preg_replace('/\s+/u', ' ', substr($value, 0, $position)));
+
+            // A single word is kept: "Delete {{ $label }}" renders as
+            // "Delete resource", and the prefix is what identifies the entry.
+            if (preg_match('/[A-Za-z]{3,}/', $prefix) === 1) {
+                $prefixes[] = $prefix;
+            }
+        }
+
+        return $prefixes;
+    }
+
+    /**
      * Text nodes and attribute values in one template, in source order.
      *
      * @return list<string>
@@ -52,6 +89,14 @@ class BladeTextExtractor
     public static function fromTemplate(string $source): array
     {
         $found = [];
+
+        // Interpolated props need the original source: the echo is removed below,
+        // which would leave only the static prefix ("Delete" out of
+        // title="Delete {{ $resourceLabel }}"). The prefix reaches the browser as
+        // the first words of the rendered text node.
+        foreach (self::interpolatedPropPrefixes($source) as $prefix) {
+            $found[] = $prefix;
+        }
 
         foreach (preg_split(self::TAG_SPLIT, self::stripBlade($source), -1, PREG_SPLIT_DELIM_CAPTURE) ?: [] as $index => $segment) {
             if ($index % 2 === 1) {

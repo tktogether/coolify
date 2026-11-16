@@ -1,8 +1,8 @@
 <?php
 
-/* 上游同步批次：随上游合并进入界面的新文案，登录页注册词条，浏览器标签页标题，
-   面包屑标题，其余界面标签，lang/en.json 中经 __() 渲染的词条，单字标签批次，
-   以及邮件模板与引导页文案。示例占位值与被标签切断的句尾碎片不收录。 */
+/* 上游同步批次：新文案、登录页词条、标签页标题、面包屑标题、界面标签、
+   lang/en.json 词条、单字标签、以及枚举型插值 prop 的组合键。
+   示例占位值与被标签切断的句尾碎片不收录。 */
 
 return [
     'An invitation created this account, and it is already in use. Sign in with its password, or reset the password with the email link, then sign in with this provider. If email is not set up, ask your administrator.' => '此账户由邀请创建，且已在使用中。请用它的密码登录，或通过邮件链接重置密码后再用此提供商登录。若未配置邮件，请联系管理员。',
@@ -368,4 +368,32 @@ return [
     'This will:' => '这将：',
     'The in this list, from all pages.' => '此列表中的条目，范围覆盖所有页面。',
     'and more' => '以及更多',
+    'Delete resource' => '删除资源',
+    'Delete service' => '删除服务',
+    'Delete service application' => '删除服务应用',
+    'Delete service database' => '删除服务数据库',
+    'Delete application?' => '删除应用？',
+    'Delete resource?' => '删除资源？',
+    'Delete service?' => '删除服务？',
+    'Delete service application?' => '删除服务应用？',
+    'Delete service database?' => '删除服务数据库？',
+    'Edit application' => '编辑应用',
+    'Edit resource' => '编辑资源',
+    'Edit service' => '编辑服务',
+    'Open application' => '打开应用',
+    'Open resource' => '打开资源',
+    'Open service' => '打开服务',
+    'Move application' => '迁移应用',
+    'Move service' => '迁移服务',
+    'Update application' => '更新应用',
+    'Update resource' => '更新资源',
+    'Update service' => '更新服务',
+    'Update application?' => '更新应用？',
+    'Update resource?' => '更新资源？',
+    'Update service?' => '更新服务？',
+    'This service application cannot be restored from Coolify after deletion.' => '此服务应用在删除后无法从 Coolify 恢复。',
+    'This service database cannot be restored from Coolify after deletion.' => '此服务数据库在删除后无法从 Coolify 恢复。',
+    'Active deployments will be stopped.' => '进行中的部署将被停止。',
+    'Selected volumes and stored data may be permanently removed.' => '所选卷与其中数据可能被永久移除。',
+    'Permanently delete this resource and its selected Docker resources.' => '永久删除此资源及其所选的 Docker 资源。',
 ];

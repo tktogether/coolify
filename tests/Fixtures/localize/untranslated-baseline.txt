@@ -17,6 +17,7 @@
 > | Coolify
 acme.json backups
 Actor
+Add a token to manage this server through
 admin/team-a
 again.
 All
@@ -25,17 +26,23 @@ alt
 api
 as base directory
 Axiom
+Back to the
 backup
 backups/coolify
 billing
 cloudflare
+Connect
+Container has crashed and Coolify stopped it after
 Coolify
 coolify
+Coolify cannot reach
 coolify-file-downloads/
 coolify-sentinel
 copy
 curl -fsS
 daily or 0 0 * * *
+Delete the login for
+Docker compose content (applicationId:
 docker logs coolify
 docker restart coolify
 docker/
@@ -49,10 +56,13 @@ e.g., production-server-key
 environments
 file.
 for
+Found
+From EXPOSE in
 git.com:owner/repository.git
 has no EXPOSE instruction, so the default port is used.
 Hetzner
 hottest,
+Image scanning is off for
 Job
 KEY=
 key=value
@@ -68,6 +78,7 @@ my-app/production
 never
 nginx
 nginx, ghcr.io/user/app:v1.2.3, or nginx:stable:…
+No account matches
 notifications
 Off
 offline
@@ -76,6 +87,7 @@ or the
 or upload
 other
 p95 latency
+p95 latency:
 package updates are available for your server . ## Summary - Operating System: - Package Manager: - Total Updates: - Security Updates:
 page.
 Parser
@@ -111,6 +123,7 @@ services/api/**
 src/pages/**
 ST …
 staging
+Started:
 subscription
 tab
 tag. Pin
