@@ -237,6 +237,108 @@
         });
     map['just now'] = '刚刚';
 
+    /*
+     * 规则层：PHP 在运行时拼接的句子（"3 resources on 2 servers were not
+     * scanned, so Coolify cannot tell."）没有任何静态整串可匹配，枚举数字
+     * 也不可行。这里用正则一次覆盖任意计数。
+     *
+     * 安全边界（踩过的坑）：
+     *  - 数字前必须是行首、空白或标点，后面必须是词边界；否则
+     *    "my-3 servers-app" 会被改成 "my-3 台服务器-app"。
+     *  - 只替换正则命中的片段，其余文本原样保留。
+     *  - 不使用 innerHTML，只写 textContent / nodeValue。
+     */
+    var N = '(^|[\\s(\\[,:;>])';   // 计数起点：行首、空白或标点
+
+    var rules = [
+        // N resources on M servers were not scanned, so Coolify cannot tell.
+        {
+            re: new RegExp(N + '(\\d[\\d,]*) resources? on (\\d[\\d,]*) servers? were not scanned, so Coolify cannot tell\\.', 'g'),
+            to: '$1$2 个资源，位于 $3 台服务器上未被扫描，Coolify 无法判断。'
+        },
+        // 1 resource on M servers was not scanned, so Coolify cannot tell.
+        {
+            re: new RegExp(N + '1 resource on (\\d[\\d,]*) servers? was not scanned, so Coolify cannot tell\\.', 'g'),
+            to: '$1' + '1 个资源，位于 $2 台服务器上未被扫描，Coolify 无法判断。'
+        },
+        // N resources on 1 server were not scanned, so Coolify cannot tell.
+        {
+            re: new RegExp(N + '(\\d[\\d,]*) resources? on 1 server were not scanned, so Coolify cannot tell\\.', 'g'),
+            to: '$1$2 个资源，位于 1 台服务器上未被扫描，Coolify 无法判断。'
+        },
+        // 1 resource on 1 server was not scanned, so Coolify cannot tell.
+        {
+            re: new RegExp(N + '1 resource on 1 server was not scanned, so Coolify cannot tell\\.', 'g'),
+            to: '$1' + '1 个资源，位于 1 台服务器上未被扫描，Coolify 无法判断。'
+        },
+        // N resources were not scanned, so Coolify cannot tell.
+        {
+            re: new RegExp(N + '(\\d[\\d,]*) resources? were not scanned, so Coolify cannot tell\\.', 'g'),
+            to: '$1$2 个资源未被扫描，Coolify 无法判断。'
+        },
+        // 1 resource was not scanned, so Coolify cannot tell.
+        {
+            re: new RegExp(N + '1 resource was not scanned, so Coolify cannot tell\\.', 'g'),
+            to: '$1' + '1 个资源未被扫描，Coolify 无法判断。'
+        },
+        // Metrics enabled on N servers.
+        {
+            re: new RegExp(N + 'Metrics enabled on (\\d[\\d,]*) servers?\\.', 'g'),
+            to: '$1已在 $2 台服务器上启用指标。'
+        }
+    ];
+
+    /*
+     * 计数 + 单位：只在整段节点是「N word」时替换，避免动到用户数据。
+     * 词表刻意收窄到页面里真实出现的计数单位。
+     */
+    var units = {
+        container: '个容器', containers: '个容器',
+        service: '个服务', services: '个服务',
+        application: '个应用', applications: '个应用',
+        database: '个数据库', databases: '个数据库',
+        deployment: '次部署', deployments: '次部署',
+        server: '台服务器', servers: '台服务器',
+        resource: '个资源', resources: '个资源',
+        project: '个项目', projects: '个项目',
+        environment: '个环境', environments: '个环境',
+        network: '个网络', networks: '个网络',
+        volume: '个卷', volumes: '个卷',
+        backup: '个备份', backups: '个备份',
+        domain: '个域名', domains: '个域名',
+        member: '位成员', members: '位成员',
+        user: '个用户', users: '个用户',
+        key: '个密钥', keys: '个密钥',
+        image: '个镜像', images: '个镜像',
+        package: '个软件包', packages: '个软件包',
+        update: '个更新', updates: '个更新',
+        event: '个事件', events: '个事件',
+        request: '次请求', requests: '次请求',
+        finding: '条发现', findings: '条发现',
+        vulnerability: '个漏洞', vulnerabilities: '个漏洞'
+    };
+
+    var countRe = /^(\d[\d,]*)(?:\s+)([a-zA-Z]+)$/;
+
+    /*
+     * 只在「整段节点恰好是 N + 单位」时替换。节点里有别的词（用户名、
+     * 镜像名、路径）一律不动，因此不会从用户数据里切出片段。
+     */
+    var applyRules = function (text) {
+        var out = text;
+        for (var i = 0; i < rules.length; i++) {
+            out = out.replace(rules[i].re, rules[i].to);
+        }
+
+        var trimmed = out.trim();
+        var m = countRe.exec(trimmed);
+        if (m && units[m[2].toLowerCase()]) {
+            return out.replace(trimmed, m[1] + ' ' + units[m[2].toLowerCase()]);
+        }
+
+        return out;
+    };
+
     var applyTo = function (root) {
         if (!root) {
             return;
@@ -253,10 +355,18 @@
             var raw = node.nodeValue || '';
             var trimmed = raw.trim();
             var zh = map[trimmed];
-            if (zh === undefined) {
+            if (zh !== undefined) {
+                node.nodeValue = raw.replace(trimmed, zh);
                 continue;
             }
-            node.nodeValue = raw.replace(trimmed, zh);
+            // 规则层：只在节点确实是英文句子时处理，且要求替换后确实改变了文本。
+            if (rules.length === 0 || !/[A-Za-z]{3,}/.test(trimmed)) {
+                continue;
+            }
+            var converted = applyRules(raw);
+            if (converted !== raw) {
+                node.nodeValue = converted;
+            }
         }
     };
 
