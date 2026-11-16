@@ -1,8 +1,6 @@
 <?php
 
-/* PHP 侧与组件 prop 界面文案：Livewire 组件与模型里的字段、Blade 内 :options
-   的下拉选项、@props 默认值、按钮与弹窗标题、确认提示、绑定 prop 的
-   三元表达式字面量、带计数的分组标签，以及 PHP 运行时拼接句的片段。 */
+/* PHP 侧与组件 prop 界面文案，以及下拉选项中的枚举值。 */
 
 return [
     'Access server terminal' => '访问服务器终端',
@@ -580,4 +578,9 @@ return [
     'Application:' => '应用：',
     'Last attempt:' => '上次尝试：',
     'Project environments' => '项目环境',
+    'Off' => '关闭',
+    'Transfer' => '迁移',
+    'Error %' => '错误率 %',
+    'Plan' => '方案',
+    'Dynamic' => '动态',
 ];

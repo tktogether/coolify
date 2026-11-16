@@ -173,3 +173,51 @@ test('an interpolated prop label translates once the value is known', function (
     expect(HtmlLocalizer::translate('<h4>Delete resource</h4>', $map))->toBe('<h4>删除资源</h4>')
         ->and(HtmlLocalizer::translate('<h4>Delete application</h4>', $map))->toBe('<h4>删除应用</h4>');
 });
+
+test('every listbox option label reaches the client whitelist', function () {
+    // The listbox renders its options with x-text="option.label", so Alpine inserts
+    // the label in the browser and the server-side pass never sees it. A label the
+    // client whitelist does not carry stays English forever, even when the same
+    // value is translated elsewhere on the page.
+    $map = coverageDictionary();
+
+    $script = file_get_contents(public_path('js/localize-client.js'));
+    preg_match_all('/^\s*\'([^\']+)\':/m', $script, $matches);
+    $whitelist = array_flip($matches[1]);
+
+    $missing = [];
+
+    $files = new RecursiveIteratorIterator(new RecursiveDirectoryIterator(resource_path('views'), FilesystemIterator::SKIP_DOTS));
+    foreach ($files as $file) {
+        if (! $file->isFile() || ! str_ends_with($file->getFilename(), '.blade.php')) {
+            continue;
+        }
+
+        $source = (string) file_get_contents($file->getPathname());
+
+        // Only a listbox option renders through x-text. A 'label' inside an
+        // :actions array reaches the page as server-rendered text.
+        if (preg_match_all('/:options\s*=\s*"([^"]*)"/s', $source, $optionGroups) === 0) {
+            continue;
+        }
+
+        $labels = [1 => []];
+        foreach ($optionGroups[1] as $group) {
+            if (preg_match_all('/\'label\'\s*=>\s*\'([^\']*)\'/s', $group, $found)) {
+                $labels[1] = array_merge($labels[1], $found[1]);
+            }
+        }
+
+        foreach ($labels[1] as $label) {
+            $label = trim($label);
+
+            if (mb_strlen($label) < 3 || ! isset($map[$label]) || isset($whitelist[$label])) {
+                continue;
+            }
+
+            $missing[$label] = true;
+        }
+    }
+
+    expect(array_keys($missing))->toBe([], 'option labels the client whitelist cannot translate: '.implode(', ', array_keys($missing)));
+});

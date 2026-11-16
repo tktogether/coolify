@@ -96,14 +96,12 @@ domains set.
 Doppler
 Dragonfly
 dragonfly-data-
-Dynamic
 e.g. my-api
 e.g., production-app-server
 e.g., production-server-key
 Ed25519
 Enable healthcheck
 environments
-Error %
 file.
 Filepath
 for
@@ -166,7 +164,6 @@ notifications
 nullable
 nullable|string|max:1000
 nullable|string|max:255
-Off
 offline
 on .
 or the
@@ -181,7 +178,6 @@ paste
 Paused
 Permanently Cancel
 php
-Plan
 Please
 plugins
 PostGIS
@@ -279,7 +275,6 @@ Token description
 Traefik
 Traefik required
 traefik:
-Transfer
 Transfer failed
 Tropical Storm
 Try another repository, tag or ID, or clear the search.
