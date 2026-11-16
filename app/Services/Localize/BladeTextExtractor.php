@@ -30,13 +30,17 @@ class BladeTextExtractor
      * Attribute values the runtime renders as text.
      *
      * title and placeholder are also browser attributes, and the localizer
-     * translates them in place. label and description are component props: the
-     * project's form and layout components print them into their own markup
-     * (`{{ $label }}`, `{{ $description }}`), so the rendered page contains them
-     * as ordinary text nodes even though the template value never appears
+     * translates them in place. The rest are component props: the project's
+     * components print them into their own markup — `{{ $label }}`,
+     * `{{ $description }}`, `{{ $buttonTitle }}` — so the rendered page contains
+     * them as ordinary text nodes even though the template value never appears
      * literally in the HTML.
+     *
+     * The button and confirmation captions are the largest group: 384 call sites
+     * in the views, and an English caption on a button is one of the first things
+     * a user notices.
      */
-    private const TRANSLATABLE_ATTRIBUTE = '~\s(?:title|placeholder|aria-label|data-tooltip|label|description)\s*=\s*(["\'])(.*?)\1~is';
+    private const TRANSLATABLE_ATTRIBUTE = '~\s(title|placeholder|aria-label|data-tooltip|label|description|buttonTitle|step1ButtonText|step2ButtonText|step3ButtonText|confirmationLabel|shortConfirmationLabel|emptyText|searchEmptyText)\s*=\s*(["\'])(.*?)\2~is';
 
     /**
      * Stands where a conditional directive sat, so the branches on either side
@@ -98,10 +102,19 @@ class BladeTextExtractor
             $found[] = $prefix;
         }
 
+        // PHP array values in the original source: a bound option list such as
+        // :options="[['value' => true, 'label' => 'Use Docker build cache']]" is
+        // inside a quoted attribute, so the tag pass below treats it as a value
+        // rather than as text. The component renders each label as a text node.
+        foreach (self::fromPhpArrayValues($source) as $value) {
+            $found[] = $value;
+        }
+
         foreach (preg_split(self::TAG_SPLIT, self::stripBlade($source), -1, PREG_SPLIT_DELIM_CAPTURE) ?: [] as $index => $segment) {
             if ($index % 2 === 1) {
+                // Group 2 is the quote character, group 3 the attribute value.
                 if (preg_match_all(self::TRANSLATABLE_ATTRIBUTE, $segment, $matches) > 0) {
-                    foreach ($matches[2] as $value) {
+                    foreach ($matches[3] as $value) {
                         $found[] = $value;
                     }
                 }
@@ -211,8 +224,12 @@ class BladeTextExtractor
     }
 
     /**
-     * Display text in single-quoted array values: name, description, title, label,
-     * helper, and placeholder.
+     * Display text in array values: name, description, title, label, helper, and
+     * placeholder, quoted with either single or double quotes.
+     *
+     * Double quotes matter for component defaults: `@props(['label' => "You have
+     * changes that haven't been saved yet."])` puts an apostrophe inside the value,
+     * which is exactly why the original author reached for double quotes.
      *
      * A value inside a schema entry — an array that also declares `type` — is an
      * API field description, not UI copy. Models expose many of those, and
@@ -222,13 +239,19 @@ class BladeTextExtractor
      */
     public static function fromPhpArrayValues(string $source): array
     {
-        if (preg_match_all('/[\'"](name|description|title|label|helper|placeholder)[\'"]\s*=>\s*\'((?:[^\'\\\\]|\\\\.)*)\'/s', $source, $matches, PREG_SET_ORDER) === 0) {
+        $pattern = '/[\'"](name|description|title|label|helper|placeholder)[\'"]\s*=>\s*'
+            .'(?:\'((?:[^\'\\\\]|\\\\.)*)\'|"((?:[^"\\\\]|\\\\.)*)")/s';
+
+        if (preg_match_all($pattern, $source, $matches, PREG_SET_ORDER) === 0) {
             return [];
         }
 
         $found = [];
         foreach ($matches as $match) {
-            $value = str_replace(["\\'", '\\\\'], ["'", '\\'], $match[2]);
+            // Group 2 is the single-quoted value, group 3 the double-quoted one.
+            $raw = ($match[2] ?? '') !== '' ? $match[2] : ($match[3] ?? '');
+
+            $value = str_replace(["\\'", '\\"', '\\\\'], ["'", '"', '\\'], $raw);
             $value = trim((string) preg_replace('/\s+/u', ' ', $value));
 
             if ($value === '') {

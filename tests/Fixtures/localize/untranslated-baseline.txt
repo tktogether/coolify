@@ -2,6 +2,10 @@
 # Regenerate with `php artisan localize:baseline` after a reviewed run.
 "" backups: All backups were successful.
 "" backups: There were some failed backups. Please login and check the logs for more details.
++ Add
++ Add Gitea / Forgejo App
++ Add GitHub App
++ Add GitLab App
 + more Make this application available from a URL
 , and
 , or run
@@ -23,19 +27,29 @@ again.
 All
 alpine
 alt
+apache:alpine
 api
+Argon2id
 as base directory
 Axiom
 Back to the
 backup
+Backup Filename
 backups/coolify
+bcrypt
 billing
+Blur Black
 Brevo
 Build
+Caddy
+Cancel Immediately
+Cancel Runner
 Clickhouse
 ClickHouse
 clickhouse-data-
 cloudflare
+Confirm Cancellation
+Confirmation
 Connect
 Container has crashed and Coolify stopped it after
 Coolify
@@ -46,11 +60,25 @@ coolify-file-downloads/
 coolify-overlay
 coolify-sentinel
 copy
+Cosmic Lagoon
+Cosmic Purple
 curl -fsS
 daily or 0 0 * * *
+Database name
+Delete Certificate
+Delete Certificates
+Delete Image
+Delete passkey
+Delete script
+Delete tag
+Delete task
 Delete the login for
+Delete token
+Delete unused ()
 deploy-canvas-session
 description
+Destination Name
+destinations
 Docker compose content (applicationId:
 docker logs coolify
 docker restart coolify
@@ -61,22 +89,38 @@ dockerfile-
 docs
 domain
 domains set.
+Doppler
 Dragonfly
 dragonfly-data-
+Dynamic
 e.g. my-api
 e.g., production-app-server
 e.g., production-server-key
+Ed25519
+Enable healthcheck
 environments
+Error %
 file.
+Filepath
 for
 Found
 From EXPOSE in
+Generate default
 git.com:owner/repository.git
+Gitea
+GitHub
 Gmail
+Golden Hour
+Golden Nebula
 has no EXPOSE instruction, so the default port is used.
 Hetzner
 hottest,
+http
+https
+Icy Mist
+identifier
 Image scanning is off for
+Infisical
 Job
 KEY=
 key=value
@@ -92,6 +136,7 @@ main
 managed
 MariaDB
 mariadb-data-
+Midnight
 Mode:
 MongoDB
 mongodb-configdb-
@@ -101,9 +146,13 @@ my-app/production
 MySQL
 mysql-data-
 name
+Neon Glow
+Neon Nebula
 never
 nginx
 nginx, ghcr.io/user/app:v1.2.3, or nginx:stable:…
+nginx:alpine
+Nixpacks
 No account matches
 notifications
 nullable
@@ -122,6 +171,7 @@ page.
 Parser
 paste
 Paused
+Permanently Cancel
 php
 Plan
 Please
@@ -139,27 +189,48 @@ prd
 prod
 production
 production api customer-a
+project
 projects
 pv-name
 read_repository
 read_user
+Redeploy all
+Redeploy All
 redis-data-
+Refund my latest payment (eligible for
+Regenerate
+Regenerate Certificate
+Remove source
+Remove storage
+Replace record
 requests remaining
 required
 required|min:3|max:255
 required|string
 required|string|max:255
 requires two-factor authentication. Configure it to continue.
+Reset configuration
+Reset Configuration
 responses ·
+Restart Database
+Restore defaults
+Revoke token
+Roll token
+RSA 4096
 Run
+Run cleanup
+Save certificate
+Save Certificate
 schedule
 scope.
 secret
 Security:
 SendGrid
 sentinel:latest
+server
 servers
 services/api/**
+sources
 SQLite
 sqlite-data-
 src/pages/**
@@ -167,21 +238,27 @@ ST …
 staging
 Started:
 subscription
+Swarm
 tab
+Tag Name
 tag. Pin
+Task name
+Team name
 teammate.com
 test.com
-The host keys that git over SSH accepts for self-hosted Git hosts. On the first deployment, Coolify saves the key that the host sends, and later deployments fail if the key changes. To accept a new key (also of a submodule host), click Fetch current host key, compare the fingerprint with the fingerprint from the administrator of the Git host, and click Accept. GitHub, GitLab.com, and Bitbucket Cloud always accept their published keys. If GitHub or Bitbucket Cloud changes its keys, click Fetch current host key to read the new keys from their official HTTPS endpoint. If GitLab.com changes its keys, click Fetch current host key and compare the fingerprint with the keys on docs.gitlab.com.
-The username and password or access token Coolify uses to clone a private repository from a custom Git host (Azure DevOps, Bitbucket, Gitea, and others) over HTTP(S). Coolify sends them only to the host of the repository URL and never shows the saved password or token.
 Timeout
 to create more .
 to get started.
 to:
 token
+Token description
 Traefik
 traefik:
+Transfer
+Tropical Storm
 unapplied.
 Unused
+Update selected
 upgrade guide
 upgrade your subscription
 us-east-1
@@ -189,6 +266,7 @@ us-east-1.aws.edge.axiom.co
 use this tag.
 used by database and volume backups.
 User
+User name
 variables →
 Vultr
 Waiting
@@ -200,6 +278,7 @@ with frequency of was FAILED. ### Reason
 Working
 you
 You
+You have * changes that haven't been saved yet.
 · /mo
 · · GB ·
 – of
