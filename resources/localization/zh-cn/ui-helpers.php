@@ -9,6 +9,8 @@ return [
     '(or' => '（或',
     ') in' => '）位于',
     '). Redeploy or restart resources to apply the logging driver.' => '）。重新部署或重启资源以应用该日志驱动。',
+    'Any 2xx or 3xx response always passes. Set a 4xx or 5xx code (for example 401) to also pass that response.' => '任何 2xx 或 3xx 响应始终通过。如需让某个 4xx 或 5xx 状态码（例如 401）也通过，请填写该状态码。',
+    'The response body must contain this text. Leave empty to check only the response code. A HEAD response has no body, so HEAD does not check the text.' => '响应正文必须包含此文本。留空则只校验响应状态码。HEAD 响应没有正文，因此 HEAD 不校验此文本。',
     ', plus' => '，以及',
     ', then restarts Coolify.' => '，然后重启 Coolify。',
     // 行内代码之间的连接词：与 <code> 相邻的整段文本节点，单字键只按整段匹配不会误伤。
