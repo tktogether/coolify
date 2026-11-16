@@ -65,7 +65,7 @@ class HtmlLocalizer
             return $html;
         }
 
-        [$exact, $phrases] = self::splitMap($map);
+        [$exact, $phrases, $index] = self::splitMap($map);
 
         $parts = preg_split(self::COMMENT_SPLIT, $html, -1, PREG_SPLIT_DELIM_CAPTURE);
         if ($parts === false) {
@@ -83,7 +83,7 @@ class HtmlLocalizer
             if (str_starts_with($part, '<!--')) {
                 $result .= $part;
             } else {
-                $result .= self::translateSegments($part, $exact, $phrases, $skipStack);
+                $result .= self::translateSegments($part, $exact, $phrases, $index, $skipStack);
             }
         }
 
@@ -92,10 +92,16 @@ class HtmlLocalizer
 
     /**
      * Split the dictionary into whole-segment exact matches (keys without
-     * spaces) and in-segment phrase replacements (keys containing spaces).
+     * spaces), in-segment phrase replacements (keys containing spaces), and an
+     * index from a phrase's first word to the keys that start with it.
+     *
+     * The index keeps a text node cheap: a page has thousands of nodes and the
+     * dictionary thousands of phrases, so scanning every phrase for every node is
+     * what made a page take seconds. A key can only match a node that contains
+     * its first word, so the node's own words pick the few keys worth testing.
      *
      * @param  array<string, string>  $map
-     * @return array{0: array<string, string>, 1: array<string, string>}
+     * @return array{0: array<string, string>, 1: array<string, string>, 2: array<string, list<string>>}
      */
     private static function splitMap(array $map): array
     {
@@ -119,7 +125,31 @@ class HtmlLocalizer
             }
         }
 
-        return [$exact, $phrases];
+        return [$exact, $phrases, self::indexPhrases($phrases)];
+    }
+
+    /**
+     * Map a phrase's first word to the keys that start with it.
+     *
+     * A key can only match a segment that contains its first word, so one map
+     * lookup per word of the segment replaces a scan over every phrase.
+     *
+     * @param  array<string, string>  $phrases
+     * @return array<string, list<string>>
+     */
+    private static function indexPhrases(array $phrases): array
+    {
+        $index = [];
+
+        foreach (array_keys($phrases) as $key) {
+            $key = (string) $key;
+            if (preg_match('/^[^\p{L}\p{N}]*([\p{L}\p{N}_]+)/u', $key, $matches) !== 1) {
+                continue;
+            }
+            $index[mb_strtolower($matches[1])][] = $key;
+        }
+
+        return $index;
     }
 
     /**
@@ -136,14 +166,15 @@ class HtmlLocalizer
      *
      * @param  array<string, string>  $exact
      * @param  array<string, string>  $phrases
+     * @param  array<string, list<string>>  $index
      */
-    private static function translateText(string $text, array $exact, array $phrases): string
+    private static function translateText(string $text, array $exact, array $phrases, array $index): string
     {
         if ($exact !== [] && preg_match(self::TRIMMED_SEGMENT, $text, $matches) === 1 && isset($exact[$matches[2]])) {
             return $matches[1].$exact[$matches[2]].$matches[3];
         }
 
-        $translated = self::replacePhrases($text, $phrases);
+        $translated = self::replacePhrases($text, $phrases, $index);
 
         if ($translated !== $text || $phrases === []) {
             return $translated;
@@ -160,7 +191,7 @@ class HtmlLocalizer
         }
 
         $collapsed = $matches[1].$collapsedBody.$matches[3];
-        $translated = self::replacePhrases($collapsed, $phrases);
+        $translated = self::replacePhrases($collapsed, $phrases, $index);
 
         return $translated === $collapsed ? $text : $translated;
     }
@@ -177,16 +208,38 @@ class HtmlLocalizer
      * the character after it are not part of a word, and when no longer key
      * covers the same span.
      *
+     * Only the keys whose first word occurs in the text are considered, so the
+     * cost follows the length of the text rather than the size of the dictionary.
+     *
      * @param  array<string, string>  $phrases
+     * @param  array<string, list<string>>  $index
      */
-    private static function replacePhrases(string $text, array $phrases): string
+    private static function replacePhrases(string $text, array $phrases, array $index): string
     {
         if ($phrases === [] || $text === '') {
             return $text;
         }
 
+        $candidates = [];
+
+        // One lookup per distinct word of the text.
+        if (preg_match_all('/[\p{L}\p{N}_]+/u', $text, $words) > 0) {
+            foreach (array_unique($words[0]) as $word) {
+                $keys = $index[mb_strtolower($word)] ?? null;
+                if ($keys !== null) {
+                    foreach ($keys as $key) {
+                        $candidates[$key] = true;
+                    }
+                }
+            }
+        }
+
+        if ($candidates === []) {
+            return $text;
+        }
+
         // Longest first: a sentence key must beat the fragment key it contains.
-        $keys = array_keys($phrases);
+        $keys = array_keys($candidates);
         usort($keys, static fn (string $a, string $b): int => mb_strlen($b) <=> mb_strlen($a));
 
         $result = $text;
@@ -297,7 +350,7 @@ class HtmlLocalizer
      * @param  array<string, string>  $phrases
      * @param  list<string>  $skipStack
      */
-    private static function translateSegments(string $html, array $exact, array $phrases, array &$skipStack): string
+    private static function translateSegments(string $html, array $exact, array $phrases, array $index, array &$skipStack): string
     {
         $segments = preg_split(self::TAG_SPLIT, $html, -1, PREG_SPLIT_DELIM_CAPTURE);
         if ($segments === false) {
@@ -306,15 +359,16 @@ class HtmlLocalizer
 
         $result = '';
 
-        foreach ($segments as $index => $segment) {
+        foreach ($segments as $position => $segment) {
             if ($segment === '') {
                 continue;
             }
 
-            if ($index % 2 === 1) {
-                $result .= self::translateTag($segment, $exact, $phrases, $skipStack);
+            // Even indexes are text, odd indexes are whole tags (PREG_SPLIT_DELIM_CAPTURE).
+            if ($position % 2 === 1) {
+                $result .= self::translateTag($segment, $exact, $phrases, $index, $skipStack);
             } elseif ($skipStack === []) {
-                $result .= self::translateText($segment, $exact, $phrases);
+                $result .= self::translateText($segment, $exact, $phrases, $index);
             } else {
                 $result .= $segment;
             }
@@ -337,7 +391,7 @@ class HtmlLocalizer
      * @param  array<string, string>  $phrases
      * @param  list<string>  $skipStack
      */
-    private static function translateTag(string $tag, array $exact, array $phrases, array &$skipStack): string
+    private static function translateTag(string $tag, array $exact, array $phrases, array $index, array &$skipStack): string
     {
         if (preg_match('/^<\/\s*([a-zA-Z][a-zA-Z0-9:_-]*)/', $tag, $matches) === 1) {
             $keys = array_keys($skipStack, strtolower($matches[1]), true);
@@ -361,7 +415,7 @@ class HtmlLocalizer
             }
         }
 
-        return self::translateAttributes($tag, $exact, $phrases);
+        return self::translateAttributes($tag, $exact, $phrases, $index);
     }
 
     /**
@@ -370,11 +424,11 @@ class HtmlLocalizer
      * @param  array<string, string>  $exact
      * @param  array<string, string>  $phrases
      */
-    private static function translateAttributes(string $tag, array $exact, array $phrases): string
+    private static function translateAttributes(string $tag, array $exact, array $phrases, array $index): string
     {
         return preg_replace_callback(
             self::TRANSLATABLE_ATTRIBUTE,
-            fn (array $matches): string => $matches[1].$matches[2].self::translateText($matches[3], $exact, $phrases).$matches[2],
+            fn (array $matches): string => $matches[1].$matches[2].self::translateText($matches[3], $exact, $phrases, $index).$matches[2],
             $tag,
         ) ?? $tag;
     }

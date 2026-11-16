@@ -159,3 +159,33 @@ test('single line text is untouched by the collapsed pass', function () {
     expect(HtmlLocalizer::translate('<div>Dashboard <span>overview</span></div>', $map))
         ->toBe('<div>仪表盘 <span>overview</span></div>');
 });
+
+test('translating a page does not scale with the dictionary size', function () {
+    // Regression: every text node used to scan every phrase key and compile a
+    // regex per key, so a real page took seconds. The matcher now indexes keys by
+    // their first word, so the work follows the text, not the dictionary.
+    $map = [];
+    foreach (glob(resource_path('localization/zh-cn').'/*.php') as $file) {
+        $entries = require $file;
+        if (is_array($entries)) {
+            $map = array_merge($map, $entries);
+        }
+    }
+
+    expect(count($map))->toBeGreaterThan(3000);
+
+    $nodes = [];
+    for ($index = 0; $index < 600; $index++) {
+        $nodes[] = 'Unmatched interface text number '.$index.' with a few words';
+        $nodes[] = 'Dashboard';
+    }
+    $html = '<div>'.implode('</div><div>', $nodes).'</div>';
+
+    $start = microtime(true);
+    HtmlLocalizer::translate($html, $map);
+    $elapsed = microtime(true) - $start;
+
+    // Generous: the indexed pass takes tens of milliseconds, the old per-key scan
+    // took seconds for this many nodes.
+    expect($elapsed)->toBeLessThan(1.5);
+});
