@@ -50,7 +50,13 @@ function untranslatedStrings(): array
     $map = coverageDictionary();
     $untranslated = [];
 
-    foreach (BladeTextExtractor::fromDirectory(resource_path('views')) as $values) {
+    $sources = array_merge(
+        BladeTextExtractor::fromDirectory(resource_path('views')),
+        // Display text that lives in PHP array values rather than a template.
+        BladeTextExtractor::fromPhpSources(app_path()),
+    );
+
+    foreach ($sources as $values) {
         foreach ($values as $value) {
             if (isset($map[$value]) || ! isTranslatableCandidate($value)) {
                 continue;

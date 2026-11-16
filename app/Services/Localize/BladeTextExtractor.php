@@ -149,6 +149,110 @@ class BladeTextExtractor
     }
 
     /**
+     * UI copy that lives in PHP instead of a template, keyed by its file.
+     *
+     * Component and Livewire payloads carry display text in array values — a
+     * resource-type card's `name` and `description`, a listbox option's `label`,
+     * a settings-section `title`. Those reach the browser as ordinary text nodes,
+     * so a template-only scan misses them completely.
+     *
+     * Only the display keys are read. Text that never renders into a page is
+     * skipped by path: OpenAPI attribute descriptions, MCP tool descriptions, and
+     * console output are documentation, not UI.
+     *
+     * @return array<string, list<string>>
+     */
+    public static function fromPhpSources(string $appDirectory): array
+    {
+        $skippedPaths = [
+            'Http/Controllers/Api/',
+            'OpenApi/',
+            'Mcp/',
+            'Console/',
+            'Jobs/',
+            'Notifications/',
+            'Actions/',
+        ];
+
+        $result = [];
+
+        $files = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($appDirectory, \FilesystemIterator::SKIP_DOTS)
+        );
+
+        foreach ($files as $file) {
+            if (! $file->isFile() || ! str_ends_with($file->getFilename(), '.php')) {
+                continue;
+            }
+
+            $relative = str_replace('\\', '/', substr($file->getPathname(), strlen($appDirectory) + 1));
+
+            foreach ($skippedPaths as $skip) {
+                if (str_starts_with($relative, $skip)) {
+                    continue 2;
+                }
+            }
+
+            $source = (string) file_get_contents($file->getPathname());
+
+            // An OpenAPI controller can also hold UI copy; skip only its attribute text.
+            $source = preg_replace('/#\[OA\\\\[^\]]*\]/s', '', $source) ?? $source;
+
+            $values = self::fromPhpArrayValues($source);
+
+            if ($values !== []) {
+                $result[$relative] = $values;
+            }
+        }
+
+        ksort($result);
+
+        return $result;
+    }
+
+    /**
+     * Display text in single-quoted array values: name, description, title, label,
+     * helper, and placeholder.
+     *
+     * A value inside a schema entry — an array that also declares `type` — is an
+     * API field description, not UI copy. Models expose many of those, and
+     * translating them would add entries that no page ever shows.
+     *
+     * @return list<string>
+     */
+    public static function fromPhpArrayValues(string $source): array
+    {
+        if (preg_match_all('/[\'"](name|description|title|label|helper|placeholder)[\'"]\s*=>\s*\'((?:[^\'\\\\]|\\\\.)*)\'/s', $source, $matches, PREG_SET_ORDER) === 0) {
+            return [];
+        }
+
+        $found = [];
+        foreach ($matches as $match) {
+            $value = str_replace(["\\'", '\\\\'], ["'", '\\'], $match[2]);
+            $value = trim((string) preg_replace('/\s+/u', ' ', $value));
+
+            if ($value === '') {
+                continue;
+            }
+
+            // Schema entry: the enclosing array declares a `type` next to it, so the
+            // value is an API field description rather than UI copy.
+            if ($match[1] === 'description') {
+                $offset = (int) strpos($source, $match[0]);
+                $before = substr($source, max(0, $offset - 400), 400);
+
+                if (preg_match('/[\'"]type[\'"]\s*=>/', $before) === 1) {
+                    continue;
+                }
+            }
+
+            $found[] = $value;
+        }
+
+        return array_values(array_unique($found));
+    }
+
+    /**
      * Remove everything that is code rather than rendered text.
      */
     private static function stripBlade(string $source): string

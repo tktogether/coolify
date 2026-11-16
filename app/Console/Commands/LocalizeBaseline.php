@@ -26,7 +26,13 @@ class LocalizeBaseline extends Command
         $map = LocalizeDictionary::map();
 
         $untranslated = [];
-        foreach (BladeTextExtractor::fromDirectory(resource_path('views')) as $values) {
+
+        $sources = array_merge(
+            BladeTextExtractor::fromDirectory(resource_path('views')),
+            BladeTextExtractor::fromPhpSources(app_path()),
+        );
+
+        foreach ($sources as $values) {
             foreach ($values as $value) {
                 if (! isset($map[$value]) && self::isCandidate($value)) {
                     $untranslated[$value] = true;
