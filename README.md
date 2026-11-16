@@ -57,6 +57,17 @@ git show upstream/main:README.md > README.upstream.md && git add README.md READM
 git commit --no-edit && git push                # 完成合并并推送，CI 随后自动构建新镜像
 ```
 
+另一个会机械冲突的文件是 [`app/Http/Kernel.php`](./app/Http/Kernel.php)：汉化中间件 `LocalizeResponse` 注册在 `web` 组末尾，上游改组内其他中间件时就会撞上。解决方式是保留双方——上游新增的中间件按上游顺序排在前，`LocalizeResponse` 保持在组内最后一行（它要改写最终响应体）：
+
+```php
+RequireTeamTwoFactor::class,
+PreventHtmlTransform::class,          // 上游新增，按上游顺序
+// Keep last: it rewrites the finished response body.
+LocalizeResponse::class,
+```
+
+解决后运行 `php artisan test --compact tests/Feature/Localize`，确认全部通过。
+
 ## 上游说明
 
 - 上游原始 README 见 [`README.upstream.md`](./README.upstream.md)。
