@@ -127,6 +127,13 @@ class HtmlLocalizer
      * exact match first (keeping the original surrounding whitespace), then one
      * phrase pass over the value.
      *
+     * A sentence that the source wraps over several lines reaches the browser
+     * with newlines and indentation inside one text node, so a key written with
+     * single spaces never matches it. When the raw pass finds nothing, the
+     * whitespace runs are collapsed and the pass repeats; only a match takes the
+     * collapsed text (HTML renders the runs as one space anyway), so anything
+     * unmatched stays byte-identical.
+     *
      * @param  array<string, string>  $exact
      * @param  array<string, string>  $phrases
      */
@@ -136,7 +143,26 @@ class HtmlLocalizer
             return $matches[1].$exact[$matches[2]].$matches[3];
         }
 
-        return strtr($text, $phrases);
+        $translated = strtr($text, $phrases);
+
+        if ($translated !== $text || $phrases === []) {
+            return $translated;
+        }
+
+        if (preg_match(self::TRIMMED_SEGMENT, $text, $matches) !== 1) {
+            return $text;
+        }
+
+        $collapsedBody = preg_replace('/\s+/', ' ', $matches[2]);
+
+        if ($collapsedBody === null || $collapsedBody === $matches[2]) {
+            return $text;
+        }
+
+        $collapsed = $matches[1].$collapsedBody.$matches[3];
+        $translated = strtr($collapsed, $phrases);
+
+        return $translated === $collapsed ? $text : $translated;
     }
 
     /**

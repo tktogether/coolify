@@ -95,3 +95,33 @@ test('data-tooltip attribute values are translated', function () {
         ->and(HtmlLocalizer::translate('<span data-tooltip="Connection">i</span>', $map))
         ->toBe('<span data-tooltip="连接">i</span>');
 });
+
+test('a wrapped sentence matches after collapsing its whitespace runs', function () {
+    $map = ['Coolify creates the root account from the ROOT_USER_* values in /data/coolify/source/.env, but it rejected them.' => '翻译'];
+    $html = "<p>Coolify creates the root account from the\n                        ROOT_USER_* values in /data/coolify/source/.env, but it rejected them.</p>";
+    expect(HtmlLocalizer::translate($html, $map))->toBe('<p>翻译</p>');
+});
+
+test('a wrapped sentence keeps its leading and trailing whitespace', function () {
+    $map = ['A wrapped sentence.' => '换行句子'];
+    $html = "<p>\n    A wrapped\n    sentence.\n</p>";
+    expect(HtmlLocalizer::translate($html, $map))->toBe("<p>\n    换行句子\n</p>");
+});
+
+test('a wrapped sentence that never matches stays byte-identical', function () {
+    $map = ['Something else' => '别的东西'];
+    $html = "<p>Line one\n    line two with no key.</p>";
+    expect(HtmlLocalizer::translate($html, $map))->toBe($html);
+});
+
+test('collapsed matching does not merge separate tags', function () {
+    $map = ['First Second' => '合并'];
+    $html = '<p>First</p><p>Second</p>';
+    expect(HtmlLocalizer::translate($html, $map))->toBe($html);
+});
+
+test('single line text is untouched by the collapsed pass', function () {
+    $map = ['Dashboard' => '仪表盘'];
+    expect(HtmlLocalizer::translate('<div>Dashboard <span>overview</span></div>', $map))
+        ->toBe('<div>仪表盘 <span>overview</span></div>');
+});
