@@ -267,7 +267,7 @@ class DeployController extends Controller
             // Mark deployment as cancelled
             $updated = ApplicationDeploymentQueue::whereKey($deployment->getKey())
                 ->whereIn('status', $cancellableStatuses)
-                ->update(['status' => ApplicationDeploymentStatus::CANCELLED_BY_USER->value]);
+                ->update(['status' => ApplicationDeploymentStatus::CANCELLED_BY_USER->value, 'finished_at' => now()]);
 
             if ($updated !== 1) {
                 $deployment->refresh();
@@ -589,7 +589,7 @@ class DeployController extends Controller
                 } catch (AuthorizationException $e) {
                     return ['message' => 'Unauthorized to deploy this service.', 'deployment_uuid' => null];
                 }
-                StartService::run($resource);
+                StartService::run($resource, pullLatestImages: true);
                 $message = "Service {$resource->name} started. It could take a while, be patient.";
                 auditLog('api.service.deployed', [
                     'service_uuid' => $resource->uuid,
@@ -713,12 +713,18 @@ class DeployController extends Controller
                 response: 200,
                 description: 'List application deployments by using the app uuid.',
                 content: [
-
                     new OA\MediaType(
                         mediaType: 'application/json',
                         schema: new OA\Schema(
-                            type: 'array',
-                            items: new OA\Items(ref: '#/components/schemas/Application'),
+                            type: 'object',
+                            properties: [
+                                new OA\Property(property: 'count', type: 'integer', description: 'Total number of deployments of the application.'),
+                                new OA\Property(
+                                    property: 'deployments',
+                                    type: 'array',
+                                    items: new OA\Items(ref: '#/components/schemas/ApplicationDeploymentQueue'),
+                                ),
+                            ],
                         )
                     ),
                 ]),
@@ -729,6 +735,10 @@ class DeployController extends Controller
             new OA\Response(
                 response: 400,
                 ref: '#/components/responses/400',
+            ),
+            new OA\Response(
+                response: 404,
+                ref: '#/components/responses/404',
             ),
         ]
     )]

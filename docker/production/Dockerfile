@@ -2,7 +2,7 @@
 # https://hub.docker.com/r/serversideup/php/tags?name=8.4-fpm-nginx-alpine
 ARG SERVERSIDEUP_PHP_VERSION=8.4-fpm-nginx-alpine-v5.0.3
 # https://github.com/cloudflare/cloudflared/releases
-ARG CLOUDFLARED_VERSION=2026.10.3
+ARG CLOUDFLARED_VERSION=2026.11.0
 # https://www.postgresql.org/support/versioning/
 # Note: We are using version 18 of the postgres client (while still using postgres 15 for the postgres server) as version 15 has been removed from Alpine 3.23+ https://pkgs.alpinelinux.org/packages?name=postgresql*-client&branch=v3.23&repo=&arch=x86_64&origin=&flagged=&maintainer=
 ARG POSTGRES_VERSION=18
@@ -153,7 +153,7 @@ RUN install-php-extensions uv-${PHP_UV_VERSION}
 # Configure shell aliases
 RUN echo "alias ll='ls -al'" >> /etc/profile && \
     echo "alias a='php artisan'" >> /etc/profile && \
-    echo "alias logs='tail -f storage/logs/laravel.log'" >> /etc/profile
+    echo "alias logs='tail -F storage/logs/laravel-\$(date -u +%F).log'" >> /etc/profile
 
 # Install Cloudflared based on architecture
 RUN mkdir -p /usr/local/bin && \
@@ -166,12 +166,14 @@ RUN mkdir -p /usr/local/bin && \
 
 # Configure PHP
 COPY docker/production/etc/php/conf.d/zzz-custom-php.ini /usr/local/etc/php/conf.d/zzz-custom-php.ini
+COPY docker/production/etc/php-fpm.d/zzzz-coolify-listen.conf /usr/local/etc/php-fpm.d/zzzz-coolify-listen.conf
 ENV PHP_OPCACHE_ENABLE=1
 # v5 defaults this to 0. Keep 1: app:init rebuilds the Laravel caches while php-fpm already runs.
 ENV PHP_OPCACHE_VALIDATE_TIMESTAMPS=1
 # v5 defaults to 256 MB with 32 MB interned strings. Every PHP CLI process has its own cache, so keep it small.
 ENV PHP_OPCACHE_MEMORY_CONSUMPTION=128
 ENV PHP_OPCACHE_INTERNED_STRINGS_BUFFER=16
+RUN install -d -m 700 -o www-data -g www-data /var/www/opcache
 
 # Configure entrypoint
 COPY --chmod=755 docker/production/entrypoint.d/ /etc/entrypoint.d

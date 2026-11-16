@@ -4,6 +4,7 @@ namespace App\Support\DatabaseImport;
 
 use App\Models\ServiceDatabase;
 use App\Support\PostgresUser;
+use Illuminate\Database\Eloquent\Model;
 use InvalidArgumentException;
 
 class DatabaseImportCommandBuilder
@@ -81,7 +82,7 @@ AWK;
     public function buildRestoreCommand(object $resource, string $path, bool $dumpAll, bool $replaceExisting = false, bool $keepOwners = false, ?string $sqliteDatabase = null, bool $restoreMysqlUsers = false): string
     {
         $script = match ($this->databaseType($resource)) {
-            'postgresql' => $this->postgresqlPrelude().($dumpAll ? $this->postgresqlDumpAll() : $this->postgresqlSingle($replaceExisting, $keepOwners)),
+            'postgresql' => $this->postgresqlPrelude($resource).($dumpAll ? $this->postgresqlDumpAll() : $this->postgresqlSingle($replaceExisting, $keepOwners)),
             'mysql' => $this->mysql('mysql', 'MYSQL', $dumpAll, $restoreMysqlUsers),
             'mariadb' => $this->mysql('mariadb', 'MARIADB', $dumpAll, $restoreMysqlUsers),
             'mongodb' => $this->mongodb($replaceExisting),
@@ -222,9 +223,12 @@ SH;
      * backup format is accepted and before the first change. When no user variable is set,
      * "postgres" is a guess, so a failed connection must stop the restore with a clear error.
      */
-    private function postgresqlPrelude(): string
+    private function postgresqlPrelude(object $resource): string
     {
-        return 'pg_user='.PostgresUser::shellExpression()."\n".<<<'SH'
+        $host = PostgresUser::clientHost($resource instanceof Model ? $resource->image : null);
+        $hostExport = $host === null ? '' : 'export PGHOST='.escapeshellarg($host)."\n";
+
+        return $hostExport.'pg_user='.PostgresUser::shellExpression()."\n".<<<'SH'
 check_connection() {
   psql -U "$pg_user" -d template1 -Atc 'SELECT 1' >/dev/null 2>&1 || fail "Cannot connect to PostgreSQL as user \"$pg_user\". Set POSTGRES_USER on the database container to its superuser. Nothing was changed."
 }
@@ -337,7 +341,13 @@ SH;
     {
         $commandPattern = escapeshellarg(self::MYSQL_CLIENT_COMMAND_PATTERN);
         $namedCommandPattern = escapeshellarg(self::MYSQL_NAMED_CLIENT_COMMAND_PATTERN);
-        $preflight = <<<SH
+        // MariaDB images also read the MYSQL_ variables, and some service images (for example
+        // linuxserver.io) set only those.
+        $variables = $prefix === 'MYSQL' ? '' : implode('', array_map(
+            fn (string $name): string => ": \"\${{$prefix}_{$name}:=\${MYSQL_{$name}:-}}\"\n",
+            ['USER', 'PASSWORD', 'DATABASE', 'ROOT_PASSWORD'],
+        ));
+        $preflight = $variables.<<<SH
 if is_tar; then
   extract_tar
   use_single_tar_member || fail 'A tar backup must contain exactly one SQL dump. Nothing was changed.'
