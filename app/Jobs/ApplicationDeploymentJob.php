@@ -919,33 +919,6 @@ class ApplicationDeploymentJob implements ShouldBeEncrypted, ShouldQueue
         $this->prepare_builder_image();
         $this->check_git_if_build_needed();
         $this->clone_repository();
-        if ($this->preserveRepository) {
-            foreach ($this->application->fileStorages as $fileStorage) {
-                $path = $fileStorage->fs_path;
-                $saveName = 'file_stat_'.$fileStorage->id;
-                $realPathInGit = str($path)->replace($this->application->workdir(), $this->workdir)->value();
-                // check if the file is a directory or a file inside the repository
-                $this->execute_remote_command(
-                    [executeInDocker($this->deployment_uuid, "stat -c '%F' ".escapeshellarg($realPathInGit)), 'hidden' => true, 'ignore_errors' => true, 'save' => $saveName]
-                );
-                if ($this->saved_outputs->has($saveName)) {
-                    $fileStat = $this->trimmedSavedOutput($saveName);
-                    if ($fileStat->value() === 'directory' && ! $fileStorage->is_directory) {
-                        $fileStorage->is_directory = true;
-                        $fileStorage->content = null;
-                        $fileStorage->save();
-                        $fileStorage->forPullRequest($this->previewFileStoragePullRequestId())->deleteStorageOnServer($this->mainServer);
-                        $fileStorage->forPullRequest($this->previewFileStoragePullRequestId())->saveStorageOnServer($this->mainServer);
-                    } elseif ($fileStat->value() === 'regular file' && $fileStorage->is_directory) {
-                        $fileStorage->is_directory = false;
-                        $fileStorage->is_based_on_git = true;
-                        $fileStorage->save();
-                        $fileStorage->forPullRequest($this->previewFileStoragePullRequestId())->deleteStorageOnServer($this->mainServer);
-                        $fileStorage->forPullRequest($this->previewFileStoragePullRequestId())->saveStorageOnServer($this->mainServer);
-                    }
-                }
-            }
-        }
         $this->generate_image_names();
         $this->cleanup_git();
         $this->validateDeploymentEnvironmentVariableKeys(buildsImage: true);
@@ -966,14 +939,7 @@ class ApplicationDeploymentJob implements ShouldBeEncrypted, ShouldQueue
             }
         } else {
             $composeFile = $this->parseComposeFileForDeployment();
-            // Always add .env file to services
-            $services = collect(data_get($composeFile, 'services', []));
-            $services = $services->map(function ($service, $name) {
-                $service['env_file'] = ['.env'];
-
-                return $service;
-            });
-            $composeFile['services'] = $services->toArray();
+            $composeFile = $this->withRepositoryEnvFiles($composeFile);
 
             // Add build secrets to compose file if enabled and BuildKit is supported
             if ($this->dockerSecretsSupported && ! empty($this->build_secrets)) {
@@ -986,6 +952,7 @@ class ApplicationDeploymentJob implements ShouldBeEncrypted, ShouldQueue
 
             $yaml = Yaml::dump(convertToArray($composeFile), 10);
         }
+        $this->syncPreservedStorageTypesWithRepository();
         $this->generated_docker_compose = $yaml;
         $this->execute_remote_command([
             "docker exec {$this->deployment_uuid} rm -f {$this->workdir}{$this->docker_compose_location}",
@@ -1037,6 +1004,88 @@ class ApplicationDeploymentJob implements ShouldBeEncrypted, ShouldQueue
         $this->start_docker_compose_services();
 
         $this->application_deployment_queue->addLogEntry('New container started.');
+    }
+
+    /**
+     * Gives each Compose service its env files from the repository, then Coolify's .env file, so
+     * Coolify variables override the defaults in them. A relative path is read from the directory of
+     * the Compose file, as Docker Compose does on a local machine, and is written from the project
+     * directory. Coolify skips a file that is not in the repository (such as a gitignored .env.local),
+     * because Docker Compose stops when an env file is missing.
+     */
+    private function withRepositoryEnvFiles(Collection $composeFile): Collection
+    {
+        $services = collect(data_get($composeFile, 'services', []));
+        if ((int) $this->application->compose_parsing_version < 3) {
+            // Legacy parser versions are frozen: their services get only Coolify's .env file, as before.
+            $composeFile['services'] = $services->map(function ($service) {
+                $service['env_file'] = ['.env'];
+
+                return $service;
+            })->toArray();
+
+            return $composeFile;
+        }
+        $composeDirectory = trim(dirname($this->docker_compose_location), '/');
+        $candidates = $services
+            ->flatMap(fn ($service): array => composeEnvFileEntries(data_get($service, 'env_file')))
+            ->reject(fn (mixed $entry): bool => isCoolifyComposeEnvFile($entry))
+            ->map(fn (mixed $entry): ?string => composeEnvFileProjectPath(composeEnvFileEntryPath($entry), $composeDirectory))
+            ->filter()
+            ->unique()
+            ->values();
+        $existingFiles = $this->existingRepositoryFiles($candidates);
+
+        $composeFile['services'] = $services->map(function ($service, $name) use ($composeDirectory, $existingFiles) {
+            $envFiles = collect(composeEnvFileEntries(data_get($service, 'env_file')))
+                ->reject(fn (mixed $entry): bool => isCoolifyComposeEnvFile($entry))
+                ->map(function (mixed $entry) use ($composeDirectory, $existingFiles, $name) {
+                    $path = composeEnvFileProjectPath(composeEnvFileEntryPath($entry), $composeDirectory);
+                    if ($path === null || ! in_array($path, $existingFiles, true)) {
+                        $this->application_deployment_queue->addLogEntry('Warning: the env_file '.composeEnvFileEntryPath($entry)." of service {$name} is not a file in the repository. Coolify skips it.", 'stderr');
+
+                        return null;
+                    }
+
+                    return is_array($entry) ? [...$entry, 'path' => $path] : $path;
+                })
+                ->filter()
+                ->all();
+            $service['env_file'] = composeEnvFilesWithCoolifyEnv($envFiles);
+
+            return $service;
+        })->toArray();
+
+        return $composeFile;
+    }
+
+    /**
+     * The paths (from the repository directory) that are regular files inside the repository. A
+     * symlink counts only when its target is inside the repository too.
+     *
+     * @param  Collection<int, string>  $paths
+     * @return list<string>
+     */
+    private function existingRepositoryFiles(Collection $paths): array
+    {
+        if ($paths->isEmpty()) {
+            return [];
+        }
+        $workdir = escapeshellarg($this->workdir);
+        $quotedPaths = $paths->map(fn (string $path): string => escapeshellarg($path))->implode(' ');
+        $this->execute_remote_command([
+            executeInDocker($this->deployment_uuid, "wd=\$(readlink -f {$workdir}); for p in {$quotedPaths}; do r=\$(readlink -f \"\$wd/\$p\") && [ -f \"\$r\" ] && case \"\$r\" in \"\$wd\"/*) echo \"\$p\";; esac; done; true"),
+            'hidden' => true,
+            'ignore_errors' => true,
+            'save' => 'repository_env_files',
+        ]);
+
+        return $this->trimmedSavedOutput('repository_env_files')
+            ->explode("\n")
+            ->map(fn (string $line): string => trim($line))
+            ->filter()
+            ->values()
+            ->all();
     }
 
     /**
@@ -4190,6 +4239,42 @@ class ApplicationDeploymentJob implements ShouldBeEncrypted, ShouldQueue
             ->all();
     }
 
+    /**
+     * With a preserved repository, a bind source that is a file or a directory in the repository decides the type
+     * of its storage. It runs after the Compose parse, so it also sees the storages that the first deployment creates.
+     */
+    private function syncPreservedStorageTypesWithRepository(): void
+    {
+        if (! $this->preserveRepository) {
+            return;
+        }
+        foreach ($this->application->fileStorages()->get() as $fileStorage) {
+            $path = $fileStorage->fs_path;
+            $saveName = 'file_stat_'.$fileStorage->id;
+            $realPathInGit = str($path)->replace($this->application->workdir(), $this->workdir)->value();
+            // check if the file is a directory or a file inside the repository
+            $this->execute_remote_command(
+                [executeInDocker($this->deployment_uuid, "stat -c '%F' ".escapeshellarg($realPathInGit)), 'hidden' => true, 'ignore_errors' => true, 'save' => $saveName]
+            );
+            if ($this->saved_outputs->has($saveName)) {
+                $fileStat = $this->trimmedSavedOutput($saveName);
+                if ($fileStat->value() === 'directory' && ! $fileStorage->is_directory) {
+                    $fileStorage->is_directory = true;
+                    $fileStorage->content = null;
+                    $fileStorage->save();
+                    $fileStorage->forPullRequest($this->previewFileStoragePullRequestId())->deleteStorageOnServer($this->mainServer);
+                    $fileStorage->forPullRequest($this->previewFileStoragePullRequestId())->saveStorageOnServer($this->mainServer);
+                } elseif ($fileStat->value() === 'regular file' && $fileStorage->is_directory) {
+                    $fileStorage->is_directory = false;
+                    $fileStorage->is_based_on_git = true;
+                    $fileStorage->save();
+                    $fileStorage->forPullRequest($this->previewFileStoragePullRequestId())->deleteStorageOnServer($this->mainServer);
+                    $fileStorage->forPullRequest($this->previewFileStoragePullRequestId())->saveStorageOnServer($this->mainServer);
+                }
+            }
+        }
+    }
+
     private function cleanup_git()
     {
         $this->execute_remote_command(
@@ -5315,7 +5400,16 @@ COPY ./nginx.conf /etc/nginx/conf.d/default.conf");
             : null;
 
         $url = escapeshellarg("{$scheme}://{$host}:{$health_check_port}".($path ?? '/'));
-        $escapedMethod = escapeshellarg($method);
+        // curl -X HEAD waits for a response body that never comes, so HEAD needs -I.
+        $curlOptions = $method === 'HEAD' ? ' -I' : ' -X '.escapeshellarg($method);
+        // The wget fallback always sends GET. Existing apps whose endpoint rejects the configured
+        // method pass only through this GET, and BusyBox wget cannot send most other methods.
+        $wgetOptions = '';
+        // The check runs inside the container, where apps often serve HTTPS with a self-signed certificate.
+        if ($scheme === 'https') {
+            $curlOptions .= ' -k';
+            $wgetOptions .= ' --no-check-certificate';
+        }
 
         if ($path) {
             $this->full_healthcheck_url = "{$method}: {$scheme}://{$host}:{$health_check_port}{$path}";
@@ -5323,11 +5417,75 @@ COPY ./nginx.conf /etc/nginx/conf.d/default.conf");
             $this->full_healthcheck_url = "{$method}: {$scheme}://{$host}:{$health_check_port}/";
         }
 
-        $generated_healthchecks_commands = [
-            "curl -s -X {$escapedMethod} -f {$url} > /dev/null || wget -q -O- {$url} > /dev/null || exit 1",
-        ];
+        $statusCheck = "curl -s{$curlOptions} -f {$url} > /dev/null || wget -q{$wgetOptions} -O- {$url} > /dev/null";
 
-        return implode(' ', $generated_healthchecks_commands);
+        $expectedErrorCode = $this->expectedHealthCheckErrorCode();
+        if ($expectedErrorCode !== null) {
+            $this->full_healthcheck_url .= " (or HTTP {$expectedErrorCode})";
+
+            // curl does not follow redirects, so its code is the final one. wget follows redirects,
+            // so the code must be in the last response: a 3xx response is never the last one.
+            $statusCheck = "curl -s -o /dev/null -w '%{http_code}'{$curlOptions} {$url} | grep -qxE '[23][0-9][0-9]|{$expectedErrorCode}'"
+                ." || wget -S{$wgetOptions} -O /dev/null {$url} 2>&1 | grep -qE 'HTTP/[0-9.]+ (2[0-9][0-9]|{$expectedErrorCode})'";
+        }
+
+        $expectedText = $this->expectedHealthCheckResponseText($method);
+        if ($expectedText === null) {
+            return "{$statusCheck} || exit 1";
+        }
+
+        // The text can contain credentials, so the deployment log does not show it.
+        $this->full_healthcheck_url .= ', and the response must contain the expected text';
+
+        // Docker Compose interpolates $ in the healthcheck, so $$ keeps a literal $.
+        $grepText = str_replace('$', '$$', escapeshellarg($expectedText));
+        $textCheck = "curl -s{$curlOptions} {$url} | grep -qF -- {$grepText}"
+            ." || wget -q{$wgetOptions} -O- {$url} 2>/dev/null | grep -qF -- {$grepText}";
+        if ($expectedErrorCode !== null) {
+            // wget writes the body of a 4xx or 5xx response only with --content-on-error. BusyBox wget
+            // rejects that option, so it is a separate fallback after the plain wget.
+            $textCheck .= " || wget -q{$wgetOptions} --content-on-error -O- {$url} 2>/dev/null | grep -qF -- {$grepText}";
+        }
+
+        return "{ {$statusCheck}; } && { {$textCheck}; } || exit 1";
+    }
+
+    /**
+     * A HEAD response has no body, so the text is not checked for HEAD.
+     */
+    private function expectedHealthCheckResponseText(string $method): ?string
+    {
+        $text = $this->application->health_check_response_text;
+        if (! is_string($text) || $text === '') {
+            return null;
+        }
+        if ($method === 'HEAD') {
+            $this->application_deployment_queue->addLogEntry('Warning: A HEAD response has no body, so the healthcheck does not check the expected response text.');
+
+            return null;
+        }
+        if (preg_match('/[\x00-\x1F\x7F]/', $text) || strlen($text) > 255) {
+            $this->application_deployment_queue->addLogEntry('Warning: The expected response text of the healthcheck contains control characters or is longer than 255 characters, so the healthcheck does not check it.');
+
+            return null;
+        }
+
+        return $text;
+    }
+
+    /**
+     * A 2xx or 3xx response always passes the HTTP healthcheck. An expected code of 400-599
+     * also passes, for example a 401 from an endpoint behind authentication.
+     */
+    private function expectedHealthCheckErrorCode(): ?int
+    {
+        $code = $this->application->health_check_return_code;
+        if (! is_numeric($code)) {
+            return null;
+        }
+        $code = (int) $code;
+
+        return $code >= 400 && $code <= 599 ? $code : null;
     }
 
     private function sanitizeHealthCheckValue(string $value, string $pattern, string $default): string
