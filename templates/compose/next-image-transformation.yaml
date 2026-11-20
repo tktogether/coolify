@@ -4,6 +4,7 @@
 # tags: nextjs,image,transformation,service
 # logo: coolify-logo.svg
 # port: 3000
+# outdated: true
 
 services:
   next-image-transformation:
@@ -19,9 +20,9 @@ services:
       timeout: 10s
       retries: 5
   imgproxy:
-    image: darthsim/imgproxy
+    image: darthsim/imgproxy:v3.31.4
     environment:
-      - IMGPROXY_ENABLE_WEBP_DETECTION=true
+      - IMGPROXY_AUTO_WEBP=true
       - IMGPROXY_JPEG_PROGRESSIVE=true
       - IMGPROXY_USE_ETAG=true
     healthcheck:

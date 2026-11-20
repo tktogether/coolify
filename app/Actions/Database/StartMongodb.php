@@ -254,7 +254,7 @@ class StartMongodb
         if ($this->database->enable_ssl) {
             $this->commands[] = "docker compose -f $this->configuration_dir/docker-compose.yml run --rm --no-deps --user root --entrypoint chown $container_name mongodb:mongodb /etc/mongo/certs/server.pem < /dev/null";
         }
-        $this->commands[] = dockerStopCommand(10, $container_name, $this->database->destination->server).' 2>/dev/null || true';
+        $this->commands[] = dockerStopCommand(30, $container_name, $this->database->destination->server).' 2>/dev/null || true';
         $this->commands[] = "docker rm -f $container_name 2>/dev/null || true";
         $this->commands[] = "docker compose -f $this->configuration_dir/docker-compose.yml up -d";
         $this->commands[] = "echo 'Database started.'";
@@ -344,7 +344,7 @@ class StartMongodb
 
     private function health_check_shell_command(bool $legacy): string
     {
-        $command = [$legacy ? 'mongo' : 'mongosh', '--quiet', '--host', $this->database->uuid];
+        $command = [$legacy ? 'mongo' : 'mongosh', '--quiet', '--host', $this->database->uuid, ...$this->database->healthCheckPortArguments($this->database->mongo_conf, '--port')];
 
         if ($this->database->enable_ssl) {
             $command = [...$command, $legacy ? '--ssl' : '--tls', $legacy ? '--sslCAFile' : '--tlsCAFile', '/etc/mongo/certs/ca.pem'];

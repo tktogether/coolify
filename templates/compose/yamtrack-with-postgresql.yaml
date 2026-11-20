@@ -4,6 +4,7 @@
 # tags: self-hosted, automation, tracker, media, movies, shows, anime, manga, games, books, comics
 # logo: svgs/yamtrack.svg
 # port: 8000
+# outdated: true
 
 services:
   yamtrack:
@@ -54,7 +55,7 @@ services:
       retries: 10
 
   redis:
-    image: redis:7-alpine
+    image: redis:8-alpine
     volumes:
       - yamtrack_redis_data:/data
     healthcheck:

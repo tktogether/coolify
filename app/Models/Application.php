@@ -151,6 +151,12 @@ class Application extends BaseModel
 
     private static $parserVersion = '5';
 
+    /**
+     * Set by a preview deployment that uses the Compose file of its pull request (not saved). The parser then
+     * reads the variables and file storages of the application, but does not add or change them.
+     */
+    public bool $usesPullRequestComposeFile = false;
+
     protected $attributes = [
         'max_restart_count' => 0,
     ];
@@ -1245,7 +1251,8 @@ class Application extends BaseModel
 
     /**
      * Another application of the team that builds and pushes an image with the same Docker image name.
-     * Both push the same tags (the commit SHA, `latest`, `pr-<id>`), so one application can run the image of the other.
+     * Both push the same tags (the commit SHA, `latest`, `pr-<id>-<commit>`), so one application can run the image of the other.
+     * The Docker image tag does not keep them apart: it is pushed in addition, and rollbacks read the commit SHA tag.
      */
     public function otherApplicationBuildingSameImage(): ?Application
     {
@@ -1264,7 +1271,10 @@ class Application extends BaseModel
 
     public function sharedImageNameMessage(Application $otherApplication): string
     {
-        return "The application {$otherApplication->name} also builds the Docker image {$this->docker_registry_image_name}. Both push the same image tags, so one application can run the image of the other. Set a different Docker image name for each application in the General settings.";
+        return "The application {$otherApplication->name} also builds the Docker image {$this->docker_registry_image_name}. "
+            .'Coolify tags each build with the commit SHA (latest for a Dockerfile set in Coolify, pr-<id>-<commit> for previews) and pushes the Docker image tag only in addition. '
+            .'A different Docker image tag does not keep the images apart, so one application can run the image of the other. '
+            ."Set a different Docker image name for each application in the General settings, for example {$this->docker_registry_image_name}-staging.";
     }
 
     public function serviceType()
@@ -1671,6 +1681,15 @@ class Application extends BaseModel
     public function workdir()
     {
         return application_configuration_dir()."/{$this->uuid}";
+    }
+
+    /**
+     * The folder on the server of one deployment: the application folder, or the own folder of a preview. A preview
+     * keeps its checkout, Compose file and .env there, so it never replaces the files of the application.
+     */
+    public function deploymentWorkdir(int $pullRequestId = 0): string
+    {
+        return addPreviewDeploymentSuffix($this->workdir(), $pullRequestId);
     }
 
     public function isLogDrainEnabled()

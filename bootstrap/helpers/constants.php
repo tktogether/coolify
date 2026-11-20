@@ -65,6 +65,8 @@ const MIN_STOP_GRACE_PERIOD_SECONDS = 1;
 const MAX_STOP_GRACE_PERIOD_SECONDS = 3600;
 const DEFAULT_ROLLING_UPDATE_DRAIN_SECONDS = 5;
 const MAX_ROLLING_UPDATE_DRAIN_SECONDS = 300;
+/** Local wait for a remote `docker logs` read bounded by remoteCommandWithTimeout(..., 30): 30s + 5s kill-after + SSH setup time. */
+const DOCKER_LOGS_LOCAL_TIMEOUT = 45;
 /**
  * caddy-docker-proxy reloads Caddy when any proxied container changes (a restart gives it a new IP), and a reload
  * closes every WebSocket at once unless `reverse_proxy` sets `stream_close_delay` (Caddy 2.7+). A stream to a
@@ -162,3 +164,8 @@ const NEEDS_TO_DISABLE_STRIPPREFIX = [
     'rybbit' => ['rybbit_backend'],
 ];
 const SHARED_VARIABLE_TYPES = ['team', 'project', 'environment', 'server'];
+/**
+ * The only parser of shared variable references ({{team.KEY}}). Every place that reads references uses it,
+ * so that all of them find the same references in a value.
+ */
+const SHARED_VARIABLE_REFERENCE_PATTERN = '/{{\s*(\w+)\.([^}\s]+)\s*}}/';

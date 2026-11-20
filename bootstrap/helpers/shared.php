@@ -1690,12 +1690,26 @@ function resolveHostToIp(string $host): string
 
 function service_templates_cache_key(): string
 {
-    return (string) config('constants.services.cache_key', 'coolify:service-templates-bundle');
+    return config('constants.services.cache_key', 'coolify:service-templates-bundle').':'.service_templates_cdn_url();
 }
 
 function service_templates_path(): string
 {
     return base_path('templates/'.config('constants.services.file_name'));
+}
+
+function service_templates_cdn_url(): ?string
+{
+    $version = config('constants.coolify.version');
+    $url = config('constants.services.official');
+
+    return match (true) {
+        isDev() => null,
+        preg_match('/^\d+\.\d+\.\d+$/', $version) === 1 => $url,
+        preg_match('/^\d+\.\d+\.\d+-(beta|rc)\.\d+$/', $version) === 1 => dirname($url).'/preview/'.basename($url),
+        preg_match('/^\d+\.\d+\.\d+-(alpha\.\d+|(alpha|beta|rc)\.\d+\.\d{8}\.\d+)$/', $version) === 1 => dirname($url).'/nightly/'.basename($url),
+        default => null,
+    };
 }
 
 /**
@@ -1749,12 +1763,12 @@ function get_service_templates_fetched_at(): ?CarbonImmutable
 
 function get_service_templates(bool $force = false): Collection
 {
-    if ($force) {
+    if ($force && service_templates_cdn_url()) {
         try {
             $response = Http::retry(3, 1000, throw: false)
                 ->timeout(60)
                 ->connectTimeout(10)
-                ->get(config('constants.services.official'));
+                ->get(service_templates_cdn_url());
             if ($response->failed()) {
                 return collect([]);
             }
@@ -5985,24 +5999,19 @@ function resolveSharedEnvironmentVariables(?string $value, $resource): ?string
         return $value;
     }
     $value = trim($value);
-    $sharedEnvsFound = str($value)->matchAll('/{{(.*?)}}/');
-    if ($sharedEnvsFound->isEmpty()) {
-        return $value;
-    }
-    foreach ($sharedEnvsFound as $sharedEnv) {
-        $type = str($sharedEnv)->trim()->match('/(.*?)\./');
-        if (! collect(SHARED_VARIABLE_TYPES)->contains($type)) {
+    preg_match_all(SHARED_VARIABLE_REFERENCE_PATTERN, $value, $references, PREG_SET_ORDER);
+    foreach ($references as [$reference, $type, $variable]) {
+        if (! in_array($type, SHARED_VARIABLE_TYPES, true)) {
             continue;
         }
-        $variable = str($sharedEnv)->trim()->match('/\.(.*)/');
         $id = null;
-        if ($type->value() === 'environment') {
+        if ($type === 'environment') {
             $id = $resource->environment->id;
-        } elseif ($type->value() === 'project') {
+        } elseif ($type === 'project') {
             $id = $resource->environment->project->id;
-        } elseif ($type->value() === 'team') {
+        } elseif ($type === 'team') {
             $id = $resource->team()->id;
-        } elseif ($type->value() === 'server') {
+        } elseif ($type === 'server') {
             $id = data_get($resource, 'destination.server_id');
         }
         if (is_null($id)) {
@@ -6014,11 +6023,11 @@ function resolveSharedEnvironmentVariables(?string $value, $resource): ?string
             ->where("{$type}_id", $id)
             ->first();
         if ($found) {
-            $value = str($value)->replace("{{{$sharedEnv}}}", $found->value);
+            $value = str_replace($reference, $found->value, $value);
         }
     }
 
-    return str($value)->value();
+    return $value;
 }
 
 /**
@@ -6044,7 +6053,7 @@ function redactLockedValuesInGeneratedCompose(string|array|Collection|null $comp
 
     $values = EnvironmentVariable::logRedactionSecretsFor($resource, includePreview: true, resolveRemoteSecrets: false)['locked'];
 
-    preg_match_all('/{{\s*(\w+)\.([^}\s]+)\s*}}/', (string) $resource->docker_compose_raw, $matches, PREG_SET_ORDER);
+    preg_match_all(SHARED_VARIABLE_REFERENCE_PATTERN, (string) $resource->docker_compose_raw, $matches, PREG_SET_ORDER);
     $references = collect($matches)->filter(fn (array $match): bool => in_array($match[1], SHARED_VARIABLE_TYPES, true));
     $teamId = $resource->team()?->id;
     if ($references->isNotEmpty() && $teamId !== null) {
