@@ -196,5 +196,12 @@ grep -qF 'use App\Http\Middleware\LocalizeResponse;' "$kernel" || die "$kernel l
 grep -qF "$localization_copy" "$dockerfile" || die "$dockerfile lost the resources/localization COPY line"
 grep -qF 'name="LOCALIZE_OFF"' "$phpunit" || die "$phpunit lost the LOCALIZE_OFF env line"
 
+# The fork's images live under a registry path, so REGISTRY_URL has to win over the
+# docker.io/ghcr.io setting. These files keep the fork registry in the upgrade path.
+[ "$(grep -c 'function coolifyUpgradeRegistryUrl' bootstrap/helpers/shared.php)" -eq 1 ] || die "bootstrap/helpers/shared.php lost coolifyUpgradeRegistryUrl()"
+grep -qF 'coolifyUpgradeRegistryUrl()' app/Actions/Server/UpdateCoolify.php || die "app/Actions/Server/UpdateCoolify.php no longer upgrades from the configured registry"
+grep -qF 'coolifyUpgradeRegistryUrl()' app/Livewire/Settings/Updates.php || die "app/Livewire/Settings/Updates.php no longer shows the configured registry"
+grep -qF 'coolifyUpgradeRegistryUrl()' resources/views/livewire/settings/updates.blade.php || die "resources/views/livewire/settings/updates.blade.php no longer offers the configured registry"
+
 git add -- "$readme" "$upstream_readme" "$kernel" "$dockerfile" "$phpunit"
 say "every fork marker is in place; the merge is ready to commit"

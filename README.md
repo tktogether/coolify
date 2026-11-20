@@ -47,9 +47,21 @@ cd /data/coolify/source && REGISTRY_URL=ghcr.io/tktogether LATEST_IMAGE=4.7.5 \
   - `docker/production/Dockerfile` 重新加入 `resources/localization` 的 COPY 行；
   - `phpunit.xml` 重新加入 `LOCALIZE_OFF` 环境变量。
 - **自动构建**：合并/发版后 [`build-cn-image`](./.github/workflows/build-cn-image.yml) 自动构建并推送 `ghcr.io/tktogether/coollabsio/coolify:<版本>`。
-- **自动升级**：已安装实例由官方自动升级机制拉取新版镜像。
+- **自动升级**：实例的自动升级（`Settings` → `Updates` → `Automatic updates`）从 `.env` 的 `REGISTRY_URL` 拉取镜像；同一个页面上的 `Docker registry` 也显示该值（允许带路径，如 `ghcr.io/tktogether`）。官方只允许 `docker.io`/`ghcr.io`，而本 Fork 的镜像在 `ghcr.io/tktogether/coollabsio/coolify`，所以升级来源以 `REGISTRY_URL` 为准。
 
 全链路无人值守，本汉化版最多落后上游约 1~2 小时；窗口期内实例升级拉取可能短暂失败并自动重试，实例照常运行，无害。
+
+## 镜像源退回官方时
+
+`REGISTRY_URL` 丢失（例如升级脚本收到 `docker.io`）会让实例升级成官方原版。同理，手动执行 `upgrade.sh` 时不带第三个参数会从 `.env` 读取，读不到就是 `docker.io`。恢复步骤如下（版本号按当前要装的版本改）：
+
+```bash
+sed -i 's|^REGISTRY_URL=.*|REGISTRY_URL=ghcr.io/tktogether|' /data/coolify/source/.env
+grep REGISTRY_URL /data/coolify/source/.env
+bash /data/coolify/source/upgrade.sh 4.7.6 1.0.19 ghcr.io/tktogether
+```
+
+升级脚本会把 `REGISTRY_URL` 写回 `.env`，之后 compose、`upgrade.sh` 与实例内的自动升级都从 Fork 源拉取。
 
 ## 上游冲突处理（例外情况）
 

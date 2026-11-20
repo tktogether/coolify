@@ -7,6 +7,7 @@ use App\Models\InstanceSettings;
 use App\Models\Server;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Validate;
 use Livewire\Component;
@@ -28,7 +29,7 @@ class Updates extends Component
     #[Validate('boolean')]
     public bool $is_auto_update_enabled;
 
-    #[Validate('required|string|in:docker.io,ghcr.io')]
+    #[Validate('required|string|max:255')]
     public string $docker_registry_url;
 
     #[Validate('required|string|in:stable,preview,nightly,custom')]
@@ -50,7 +51,8 @@ class Updates extends Component
         $this->auto_update_frequency = $this->settings->auto_update_frequency;
         $this->update_check_frequency = $this->settings->update_check_frequency;
         $this->is_auto_update_enabled = $this->settings->is_auto_update_enabled;
-        $this->docker_registry_url = $this->settings->docker_registry_url ?: 'docker.io';
+        // Show the registry the upgrade path really uses, which is REGISTRY_URL when it is set.
+        $this->docker_registry_url = coolifyUpgradeRegistryUrl();
         $this->update_channel = $this->settings->update_channel;
         $this->update_custom_tag = $this->settings->update_custom_tag;
     }
@@ -64,18 +66,26 @@ class Updates extends Component
                     'auto_update_frequency' => ['required', 'string'],
                 ]);
             }
+            $allowedRegistries = in_array(coolifyUpgradeRegistryUrl(), ['docker.io', 'ghcr.io'], true)
+                ? ['docker.io', 'ghcr.io']
+                : [coolifyUpgradeRegistryUrl()];
             $validated = $this->validate([
-                'docker_registry_url' => ['required', 'string', 'in:docker.io,ghcr.io'],
+                'docker_registry_url' => ['required', 'string', 'max:255', Rule::in($allowedRegistries)],
                 'update_channel' => ['required', 'string', 'in:stable,preview,nightly,custom'],
                 'update_custom_tag' => ['nullable', 'required_if:update_channel,custom', 'string', 'max:128', 'regex:/^[A-Za-z0-9_][A-Za-z0-9_.-]*$/'],
             ]);
             $this->settings->auto_update_frequency = $this->auto_update_frequency;
             $this->settings->update_check_frequency = $this->update_check_frequency;
             $this->settings->is_auto_update_enabled = $this->is_auto_update_enabled;
-            $this->settings->docker_registry_url = $validated['docker_registry_url'];
+            // The setting only names docker.io/ghcr.io for helper images. A fork registry
+            // with a path is the Coolify image source, which lives in REGISTRY_URL.
+            $registry = $validated['docker_registry_url'];
+            $this->settings->docker_registry_url = in_array($registry, ['docker.io', 'ghcr.io'], true)
+                ? $registry
+                : ($this->settings->docker_registry_url ?: 'docker.io');
             $this->settings->switchUpdateChannel($validated['update_channel']);
             $this->settings->update_custom_tag = $validated['update_custom_tag'];
-            $this->syncRegistryUrlToEnv($validated['docker_registry_url']);
+            $this->syncRegistryUrlToEnv($registry);
             $channelChanged = $this->settings->isDirty(['update_channel', 'update_custom_tag']);
             $changedFields = auditChangedFields($this->settings);
             $this->settings->save();

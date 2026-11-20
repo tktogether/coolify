@@ -64,10 +64,19 @@
                         placeholder="0 * * * *"
                         helper="A cron expression or preset such as hourly, daily, weekly, monthly, or yearly." />
 
-                    <x-forms.listbox id="docker_registry_url" label="Docker registry" :options="[
-                        ['value' => 'docker.io', 'label' => 'Docker Hub'],
-                        ['value' => 'ghcr.io', 'label' => 'GitHub Container Registry'],
-                    ]"
+                    @php
+                        $upgradeRegistry = coolifyUpgradeRegistryUrl();
+                        // A fork registry carries a path, so it cannot be swapped for docker.io/ghcr.io:
+                        // that would switch the instance to the upstream image. Offer it alone then.
+                        $registryOptions = in_array($upgradeRegistry, ['docker.io', 'ghcr.io'], true)
+                            ? [
+                                ['value' => 'docker.io', 'label' => 'Docker Hub'],
+                                ['value' => 'ghcr.io', 'label' => 'GitHub Container Registry'],
+                            ]
+                            : [['value' => $upgradeRegistry, 'label' => $upgradeRegistry]];
+                    @endphp
+
+                    <x-forms.listbox id="docker_registry_url" label="Docker registry" :options="$registryOptions"
                         helper="Switch registries if the current source is rate limited." />
 
                     @if (!is_null(config('constants.coolify.autoupdate', null)))

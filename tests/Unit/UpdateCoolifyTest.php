@@ -195,7 +195,7 @@ it('passes the saved registry URL to the upgrade script command', function () {
     );
 });
 
-it('falls back to docker io for the upgrade script command when no registry is saved', function () {
+it('uses the configured registry for the upgrade script command when no registry is saved', function () {
     Queue::fake();
     config([
         'app.env' => 'testing',
@@ -220,14 +220,53 @@ it('falls back to docker io for the upgrade script command when no registry is s
 
     expect(RemoteProcessCommand::read(Activity::query()->latest('id')->first()))->toBe(
         "curl -fsSL https://cdn.example.com/upgrade.sh -o /data/coolify/source/upgrade.sh\n".
-        "bash /data/coolify/source/upgrade.sh '4.0.10' '1.0.14' 'docker.io'"
+        "bash /data/coolify/source/upgrade.sh '4.0.10' '1.0.14' 'ghcr.io'"
     );
 });
 
-it('defaults the registry setting to docker io when no registry is saved', function () {
+it('keeps using the fork registry from the environment for the upgrade script', function () {
+    Queue::fake();
     config([
         'app.env' => 'testing',
-        'constants.coolify.registry_url' => 'ghcr.io',
+        'constants.coolify.version' => '4.0.9',
+        'constants.coolify.helper_version' => '1.0.14',
+        'constants.coolify.registry_url' => 'ghcr.io/tktogether',
+        'constants.coolify.upgrade_script_url' => 'https://cdn.example.com/upgrade.sh',
+        'constants.ssh.mux_enabled' => false,
+    ]);
+
+    updateCoolifyTestCreateRootServerAndSettings([
+        'is_auto_update_enabled' => true,
+        'docker_registry_url' => 'docker.io',
+    ]);
+
+    Http::fake([
+        '*' => Http::response([
+            'stable' => ['coolify' => ['version' => '4.0.10']],
+        ], 200),
+    ]);
+
+    (new UpdateCoolify)->handle();
+
+    expect(RemoteProcessCommand::read(Activity::query()->latest('id')->first()))
+        ->toContain('ghcr.io/tktogether')
+        ->not->toContain('docker.io');
+});
+
+it('resolves the upgrade registry from the environment before the registry setting', function () {
+    config(['constants.coolify.registry_url' => 'ghcr.io/tktogether']);
+
+    updateCoolifyTestCreateRootServerAndSettings([
+        'docker_registry_url' => 'docker.io',
+    ]);
+
+    expect(coolifyUpgradeRegistryUrl())->toBe('ghcr.io/tktogether');
+});
+
+it('shows the configured registry on the updates page when no registry is saved', function () {
+    config([
+        'app.env' => 'testing',
+        'constants.coolify.registry_url' => 'ghcr.io/tktogether',
         'constants.coolify.self_hosted' => true,
     ]);
 
@@ -241,7 +280,53 @@ it('defaults the registry setting to docker io when no registry is saved', funct
     session(['currentTeam' => ['id' => $rootTeam->id]]);
 
     Livewire::test(Updates::class)
-        ->assertSet('docker_registry_url', 'docker.io');
+        ->assertSet('docker_registry_url', 'ghcr.io/tktogether')
+        // The listbox keeps its options in JSON, which escapes the slash of a registry path.
+        ->assertSee('tktogether');
+});
+
+it('accepts the fork registry on the updates page without switching the helper registry', function () {
+    config([
+        'app.env' => 'testing',
+        'constants.coolify.registry_url' => 'ghcr.io/tktogether',
+        'constants.coolify.self_hosted' => true,
+    ]);
+
+    updateCoolifyTestCreateRootServerAndSettings([
+        'is_auto_update_enabled' => true,
+        'auto_update_frequency' => '0 0 * * *',
+        'update_check_frequency' => '0 * * * *',
+        'docker_registry_url' => 'docker.io',
+    ]);
+
+    $rootTeam = Team::findOrFail(0);
+    $user = User::factory()->create();
+    $rootTeam->members()->attach($user->id, ['role' => 'admin']);
+
+    $this->actingAs($user);
+    session(['currentTeam' => ['id' => $rootTeam->id]]);
+
+    $component = new class extends Updates
+    {
+        public string $syncedRegistry = '';
+
+        protected function syncRegistryUrlToEnv(string $registryUrl): void
+        {
+            // The env sync needs a reachable server; this test covers validation and persistence.
+            $this->syncedRegistry = $registryUrl;
+        }
+    };
+    $component->settings = InstanceSettings::findOrFail(0);
+    $component->auto_update_frequency = '0 0 * * *';
+    $component->update_check_frequency = '0 * * * *';
+    $component->is_auto_update_enabled = true;
+    $component->docker_registry_url = 'ghcr.io/tktogether';
+
+    $component->instantSave();
+
+    expect($component->syncedRegistry)->toBe('ghcr.io/tktogether')
+        // The setting stays a docker.io/ghcr.io value: helper and sentinel images use it.
+        ->and(InstanceSettings::findOrFail(0)->docker_registry_url)->toBe('docker.io');
 });
 
 it('uses the database registry for helper images when the configured helper image is default', function () {

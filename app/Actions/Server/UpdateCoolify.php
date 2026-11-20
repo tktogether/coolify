@@ -164,7 +164,8 @@ class UpdateCoolify
     {
         $latestHelperImageVersion = getHelperVersion();
         $upgradeScriptUrl = $this->upgradeScriptUrl ?? config('constants.coolify.upgrade_script_url');
-        $registryUrl ??= coolifyRegistryUrl();
+        // The fork registry from REGISTRY_URL wins: the docker.io/ghcr.io setting cannot name its image.
+        $registryUrl ??= coolifyUpgradeRegistryUrl();
 
         remote_process([
             "curl -fsSL {$upgradeScriptUrl} -o /data/coolify/source/upgrade.sh",
