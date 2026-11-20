@@ -40,30 +40,25 @@ cd /data/coolify/source && REGISTRY_URL=ghcr.io/tktogether LATEST_IMAGE=4.7.5 \
 
 ## 自动跟版
 
-- **定时合并**：[`sync-upstream`](./.github/workflows/sync-upstream.yml) 每小时检查上游 `coollabsio/coolify` main 分支，领先则自动合并并推送（其余文件预期零冲突；上游改动其 `README.md` 时会冲突停下并告警，属已知例外，处理见下节）。
+- **定时合并**：[`sync-upstream`](./.github/workflows/sync-upstream.yml) 每小时检查上游 `coollabsio/coolify` main 分支，领先则自动合并并推送。
+- **机械冲突**：[`reconcile-upstream-merge.sh`](./.github/scripts/reconcile-upstream-merge.sh) 自动解决 Fork 改动过的四个上游文件，并校验 Fork 的标记都还在：
+  - 中文 `README.md` 原样保留，上游最新英文写入 `README.upstream.md`；
+  - [`app/Http/Kernel.php`](./app/Http/Kernel.php) 重新注册 `LocalizeResponse`（`web` 组最后一行，它要改写最终响应体）；
+  - `docker/production/Dockerfile` 重新加入 `resources/localization` 的 COPY 行；
+  - `phpunit.xml` 重新加入 `LOCALIZE_OFF` 环境变量。
 - **自动构建**：合并/发版后 [`build-cn-image`](./.github/workflows/build-cn-image.yml) 自动构建并推送 `ghcr.io/tktogether/coollabsio/coolify:<版本>`。
 - **自动升级**：已安装实例由官方自动升级机制拉取新版镜像。
 
 全链路无人值守，本汉化版最多落后上游约 1~2 小时；窗口期内实例升级拉取可能短暂失败并自动重试，实例照常运行，无害。
 
-## 上游 README 更新冲突处理
+## 上游冲突处理（例外情况）
 
-上游修改其 `README.md` 时，`sync-upstream` 合并会在该文件冲突停下并告警；CI 侧不会推送任何内容，在本地 fork `main` 分支重放合并后机械解决——中文 `README.md` 原样保留，上游最新英文覆盖进 `README.upstream.md`：
+上述四个文件之外的冲突说明上游动了汉化依赖的代码，`sync-upstream` 会中止合并并报失败（不会推送半成品）。在本地 fork `main` 分支重放合并后人工判断：
 
 ```bash
-git fetch upstream && git merge upstream/main   # 重放合并；README.md 冲突属预期，报错可忽略（其余文件冲突需人工判断）
-git checkout --ours -- README.md                # 保留中文版并清除冲突标记（必须在 add 之前）
-git show upstream/main:README.md > README.upstream.md && git add README.md README.upstream.md
-git commit --no-edit && git push                # 完成合并并推送，CI 随后自动构建新镜像
-```
-
-另一个会机械冲突的文件是 [`app/Http/Kernel.php`](./app/Http/Kernel.php)：汉化中间件 `LocalizeResponse` 注册在 `web` 组末尾，上游改组内其他中间件时就会撞上。解决方式是保留双方——上游新增的中间件按上游顺序排在前，`LocalizeResponse` 保持在组内最后一行（它要改写最终响应体）：
-
-```php
-RequireTeamTwoFactor::class,
-PreventHtmlTransform::class,          // 上游新增，按上游顺序
-// Keep last: it rewrites the finished response body.
-LocalizeResponse::class,
+git fetch upstream && git merge upstream/main    # 重放合并，查看冲突文件
+# 逐个解决冲突，保留上游改动并按需恢复汉化相关代码
+git add -A && git commit --no-edit && git push   # 完成合并并推送，CI 随后自动构建新镜像
 ```
 
 解决后运行 `php artisan test --compact tests/Feature/Localize`，确认全部通过。

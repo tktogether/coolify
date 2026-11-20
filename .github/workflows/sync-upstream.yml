@@ -33,8 +33,10 @@ jobs:
           fi
           git config user.name "cn-sync-bot"
           git config user.email "noreply@users.noreply.github.com"
-          if ! git merge --no-edit upstream/main; then
-            echo "::error::Merge conflict with upstream/main. Resolve manually."
-            exit 1
-          fi
+          # The files the fork touches conflict mechanically. The reconciler
+          # resolves those, re-applies the fork's lines, and aborts on any other
+          # conflict so a real upstream change still fails the run.
+          git merge --no-edit --no-commit upstream/main || true
+          bash .github/scripts/reconcile-upstream-merge.sh upstream/main
+          git commit --no-edit
           git push origin main
