@@ -462,4 +462,8 @@ return [
     'if the log group does not exist yet.' => '（当日志组尚不存在时）。',
     'the code of a fork PR can read all environment variables of its preview. When public, previews do not get preview variables that still have the production value, and shared variables are resolved only in preview variables, not in the compose file of the PR. This is not full isolation: the preview runs on the same server as production, and with the Docker Compose build pack Coolify deploys the compose file of the PR, which can, for example, mount host paths. Give previews their own values, and do not use production secrets in them.' => 'Fork PR 的代码可以读取其预览的所有环境变量。设为公开时，预览不会获得仍沿用生产值的预览变量，并且共享变量只在预览变量中解析，不会注入 PR 的 Compose 文件。这并非完全隔离：预览与生产运行在同一台服务器上，且使用 Docker Compose 构建包时 Coolify 会部署 PR 的 Compose 文件，该文件可能挂载宿主路径等。请为预览提供独立的取值，不要在其中使用生产机密。',
     'to secure the dashboard with HTTPS.' => '，以便通过 HTTPS 保护面板。',
+    'If set, Coolify also tags the built image with this tag. The commit SHA tag stays, and the container runs it.' => '设置后，Coolify 还会用此标签标记构建的镜像。提交 SHA 标签保持不变，容器运行的是该标签对应的镜像。',
+    'Example: If you set it to \'latest\', Coolify pushes the image with the commit SHA tag and the latest tag.' => '示例：如果将其设为 \'latest\'，Coolify 会同时推送带提交 SHA 标签和 latest 标签的镜像。',
+    'Two applications cannot push the same Docker image name, also with different tags. Use a different image name for each application, for example ghcr.io/your-org/your-app-staging.' => '两个应用不能推送相同的 Docker 镜像名称，即使标签不同也不行。请为每个应用使用不同的镜像名称，例如 ghcr.io/your-org/your-app-staging。',
+    'Set this when Coolify connects to the server over a private network. DNS checks and DNS records use this address instead of the IP address above.' => '当 Coolify 通过私有网络连接该服务器时设置此项。DNS 检查和 DNS 记录将使用此地址，而不是上方的 IP 地址。',
 ];
