@@ -4873,26 +4873,6 @@ function coolifyRegistryUrl(): string
     }
 }
 
-/**
- * The registry the Coolify image and its upgrade script are pulled from.
- *
- * The fork publishes its images under a registry path (for example
- * ghcr.io/tktogether/coollabsio/coolify), which the docker.io/ghcr.io registry
- * setting cannot express. A REGISTRY_URL configured in the environment therefore
- * wins over that setting; the setting decides when the environment leaves it at
- * the docker.io default.
- */
-function coolifyUpgradeRegistryUrl(): string
-{
-    $configured = config('constants.coolify.registry_url', 'docker.io');
-
-    if (is_string($configured) && $configured !== '' && $configured !== 'docker.io') {
-        return $configured;
-    }
-
-    return coolifyRegistryUrl();
-}
-
 function coolifyHelperImage(): string
 {
     $configuredHelperImage = config('constants.coolify.helper_image');

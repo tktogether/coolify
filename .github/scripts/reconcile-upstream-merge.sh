@@ -27,6 +27,10 @@ dockerfile=docker/production/Dockerfile
 phpunit=phpunit.xml
 localization_copy='COPY --chown=www-data:www-data resources/localization ./resources/localization'
 localization_env='    <env name="LOCALIZE_OFF" value="true" force="true"/>'
+# The fork registry patch: these files are resolved by taking upstream's version
+# and re-applying the stored patch, so an upstream edit next to it keeps merging.
+registry_files=" app/Actions/Server/UpdateCoolify.php app/Livewire/Settings/Updates.php resources/views/livewire/settings/updates.blade.php "
+registry_patch=.github/scripts/fork-upgrade-registry.patch
 
 say() {
     printf '%s\n' "$*"
@@ -47,9 +51,12 @@ is_conflicted() {
 
 git rev-parse -q --verify MERGE_HEAD >/dev/null || die "no merge in progress: start the merge before running this script"
 
+# Snapshot the conflicts: resolving one of them removes it from the unmerged list.
+conflicts=$(git diff --name-only --diff-filter=U)
+
 # Fail on a conflict the fork has no rule for, before touching anything.
-for file in $(git diff --name-only --diff-filter=U); do
-    case " $readme $kernel $dockerfile $phpunit " in
+for file in $conflicts; do
+    case " $readme $kernel $dockerfile $phpunit $registry_files " in
         *" $file "*) ;;
         *)
             git merge --abort
@@ -188,8 +195,34 @@ if ! grep -qF 'name="LOCALIZE_OFF"' "$phpunit"; then
     say "$phpunit: re-added the LOCALIZE_OFF env line"
 fi
 
+# Registry patch files: take upstream's version and re-apply the stored patch on
+# top. A clean 3-way apply keeps merging when upstream edited another hunk; if
+# upstream changed the same lines, the apply fails and the merge is aborted.
+for file in $conflicts; do
+    case "$registry_files" in
+        *" $file "*)
+            git checkout --theirs -- "$file"
+            git add -- "$file"
+            say "$file: took the upstream version"
+            ;;
+    esac
+done
+
+for file in $conflicts; do
+    case "$registry_files" in
+        *" $file "*)
+            if ! git apply --3way --include="$file" "$registry_patch"; then
+                git merge --abort
+                die "could not re-apply the fork patch to $file; merge aborted"
+            fi
+            say "$file: re-applied the fork patch"
+            ;;
+    esac
+done
+
 # The merge is only clean when every fork marker is back.
 [ -f app/Http/Middleware/LocalizeResponse.php ] || die "app/Http/Middleware/LocalizeResponse.php is missing"
+[ -f bootstrap/helpers/fork.php ] || die "bootstrap/helpers/fork.php is missing"
 [ -d resources/localization/zh-cn ] || die "resources/localization/zh-cn is missing"
 grep -qF '# Coolify 中文版' "$readme" || die "$readme no longer holds the Chinese readme"
 grep -qF 'use App\Http\Middleware\LocalizeResponse;' "$kernel" || die "$kernel lost the LocalizeResponse import"
@@ -198,10 +231,12 @@ grep -qF 'name="LOCALIZE_OFF"' "$phpunit" || die "$phpunit lost the LOCALIZE_OFF
 
 # The fork's images live under a registry path, so REGISTRY_URL has to win over the
 # docker.io/ghcr.io setting. These files keep the fork registry in the upgrade path.
-[ "$(grep -c 'function coolifyUpgradeRegistryUrl' bootstrap/helpers/shared.php)" -eq 1 ] || die "bootstrap/helpers/shared.php lost coolifyUpgradeRegistryUrl()"
+[ "$(grep -c 'function coolifyUpgradeRegistryUrl' bootstrap/helpers/fork.php)" -eq 1 ] || die "bootstrap/helpers/fork.php lost coolifyUpgradeRegistryUrl()"
 grep -qF 'coolifyUpgradeRegistryUrl()' app/Actions/Server/UpdateCoolify.php || die "app/Actions/Server/UpdateCoolify.php no longer upgrades from the configured registry"
 grep -qF 'coolifyUpgradeRegistryUrl()' app/Livewire/Settings/Updates.php || die "app/Livewire/Settings/Updates.php no longer shows the configured registry"
 grep -qF 'coolifyUpgradeRegistryUrl()' resources/views/livewire/settings/updates.blade.php || die "resources/views/livewire/settings/updates.blade.php no longer offers the configured registry"
 
-git add -- "$readme" "$upstream_readme" "$kernel" "$dockerfile" "$phpunit"
+git add -- "$readme" "$upstream_readme" "$kernel" "$dockerfile" "$phpunit" \
+    app/Actions/Server/UpdateCoolify.php app/Livewire/Settings/Updates.php \
+    resources/views/livewire/settings/updates.blade.php
 say "every fork marker is in place; the merge is ready to commit"

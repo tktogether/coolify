@@ -41,11 +41,13 @@ cd /data/coolify/source && REGISTRY_URL=ghcr.io/tktogether LATEST_IMAGE=4.7.5 \
 ## 自动跟版
 
 - **定时合并**：[`sync-upstream`](./.github/workflows/sync-upstream.yml) 每小时检查上游 `coollabsio/coolify` main 分支，领先则自动合并并推送。
-- **机械冲突**：[`reconcile-upstream-merge.sh`](./.github/scripts/reconcile-upstream-merge.sh) 自动解决 Fork 改动过的四个上游文件，并校验 Fork 的标记都还在：
+- **机械冲突**：[`reconcile-upstream-merge.sh`](./.github/scripts/reconcile-upstream-merge.sh) 自动解决 Fork 改动过的上游文件，并校验 Fork 的标记都还在：
   - 中文 `README.md` 原样保留，上游最新英文写入 `README.upstream.md`；
   - [`app/Http/Kernel.php`](./app/Http/Kernel.php) 重新注册 `LocalizeResponse`（`web` 组最后一行，它要改写最终响应体）；
   - `docker/production/Dockerfile` 重新加入 `resources/localization` 的 COPY 行；
-  - `phpunit.xml` 重新加入 `LOCALIZE_OFF` 环境变量。
+  - `phpunit.xml` 重新加入 `LOCALIZE_OFF` 环境变量；
+  - 升级源补丁：[`UpdateCoolify.php`](./app/Actions/Server/UpdateCoolify.php)、[`Settings/Updates.php`](./app/Livewire/Settings/Updates.php)、[`updates.blade.php`](./resources/views/livewire/settings/updates.blade.php) 冲突时先取上游版本，再用 [`fork-upgrade-registry.patch`](./.github/scripts/fork-upgrade-registry.patch) 做 3-way 重打，补丁同一行被上游改写才中止。
+  - 汉化相关的新函数放在 Fork 自有文件 [`bootstrap/helpers/fork.php`](./bootstrap/helpers/fork.php)，不改 `shared.php`，从源头避免冲突。
 - **自动构建**：合并/发版后 [`build-cn-image`](./.github/workflows/build-cn-image.yml) 自动构建并推送 `ghcr.io/tktogether/coollabsio/coolify:<版本>`。
 - **自动升级**：实例的自动升级（`Settings` → `Updates` → `Automatic updates`）从 `.env` 的 `REGISTRY_URL` 拉取镜像；同一个页面上的 `Docker registry` 也显示该值（允许带路径，如 `ghcr.io/tktogether`）。官方只允许 `docker.io`/`ghcr.io`，而本 Fork 的镜像在 `ghcr.io/tktogether/coollabsio/coolify`，所以升级来源以 `REGISTRY_URL` 为准。
 
